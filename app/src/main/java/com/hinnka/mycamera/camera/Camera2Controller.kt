@@ -1090,6 +1090,12 @@ class Camera2Controller(private val context: Context) {
         ) {
             super.onCaptureCompleted(session, request, result)
 
+            if (session === captureSession && _state.value.previewFirstFrameTimestampNs == null) {
+                result.get(CaptureResult.SENSOR_TIMESTAMP)?.let { timestamp ->
+                    _state.update { it.copy(previewFirstFrameTimestampNs = timestamp) }
+                }
+            }
+
             realtimeStabilizationCoordinator.submitCaptureResult(
                 result = result,
                 request = request,
@@ -2068,7 +2074,14 @@ class Camera2Controller(private val context: Context) {
         pendingFrameMetadata.clear()
         pendingCaptureStartedTimestamps.clear()
         photoCaptureByTimestamp.clear()
-        _state.update { it.copy(isCapturing = false, hdrBracketCapturing = false, hdrBracketFrameCount = 0) }
+        _state.update {
+            it.copy(
+                isCapturing = false,
+                hdrBracketCapturing = false,
+                hdrBracketFrameCount = 0,
+                previewFirstFrameTimestampNs = null,
+            )
+        }
         previewSessionGeneration++
         previewUpdateScheduled.set(false)
         livePhotoVideoStartTimestampUs = null
@@ -3691,6 +3704,7 @@ class Camera2Controller(private val context: Context) {
             return
         }
         captureSession = session
+        _state.update { it.copy(previewFirstFrameTimestampNs = null) }
 
         try {
             // 根据测光模式设置默认 AE 区域

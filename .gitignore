@@ -21,3 +21,4 @@ __pycache__
 .codex-tmp
 .tmp
 /research/*
+/scripts/lut_training/runs

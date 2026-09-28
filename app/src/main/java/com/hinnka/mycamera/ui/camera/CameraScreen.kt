@@ -288,6 +288,14 @@ fun CameraScreen(
     var hasPlayedInitialPreviewTransition by remember { mutableStateOf(false) }
     var rawCaptureTapLocked by remember { mutableStateOf(false) }
     var zoomStopAnimationJob by remember { mutableStateOf<Job?>(null) }
+    val lensSwitchTransition = remember(viewModel, scope) { LensSwitchTransitionState(scope, viewModel) }
+
+    DisposableEffect(lensSwitchTransition) {
+        onDispose { lensSwitchTransition.cancel() }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        lensSwitchTransition.cancel()
+    }
 
     fun discardTransientLookEdits() {
         previewRecipeParamsOverride = null
@@ -527,6 +535,7 @@ fun CameraScreen(
 
     fun runPreviewTransition(onSwitch: () -> Unit) {
         cancelZoomStopAnimation()
+        lensSwitchTransition.cancel()
         previewTransitionActive = true
         previewTransitionRevealing = false
         previewTransitionToken += 1
@@ -539,19 +548,22 @@ fun CameraScreen(
     }
 
     fun switchToLensWithPreviewTransition(cameraId: String) {
+        lensSwitchTransition.cancelPendingSwitch()
         if (cameraId == state.getCurrentCameraInfo()?.cameraId) return
+        val targetCamera = state.availableCameras.firstOrNull { it.cameraId == cameraId } ?: return
+        val targetZoom = targetCamera.displayIntrinsicZoomRatio.takeIf { it > 0f }
+            ?: targetCamera.intrinsicZoomRatio.takeIf { it > 0f }
+            ?: 1f
         if (viewModel.isVideoLensLocked()) {
-            val targetCamera = state.availableCameras.firstOrNull { it.cameraId == cameraId }
-            val targetZoom = targetCamera?.displayIntrinsicZoomRatio
-                ?.takeIf { it > 0f }
-                ?: targetCamera?.intrinsicZoomRatio?.takeIf { it > 0f }
-            targetZoom?.let(::animateCurrentLensToZoomStop)
+            animateCurrentLensToZoomStop(targetZoom)
             return
         }
-        runPreviewTransition { viewModel.switchToLens(cameraId) }
+        cancelZoomStopAnimation()
+        lensSwitchTransition.switchLens(cameraId, targetZoom) { viewModel.switchToLens(cameraId) }
     }
 
     fun setZoomWithPreviewTransition(targetZoom: Float) {
+        lensSwitchTransition.cancelPendingSwitch()
         cancelZoomStopAnimation()
         if (viewModel.isVideoLensLocked()) {
             viewModel.setZoomRatio(targetZoom)
@@ -569,7 +581,7 @@ fun CameraScreen(
             currentCameraId
         )
         if (camera != null && camera.cameraId != currentCamera?.cameraId) {
-            runPreviewTransition {
+            lensSwitchTransition.switchLens(camera.cameraId, targetZoom) {
                 viewModel.switchToLensAndSetZoomRatio(camera.cameraId, targetZoom)
             }
         } else {
@@ -578,6 +590,8 @@ fun CameraScreen(
     }
 
     fun animateZoomStopWithPreviewTransition(targetZoom: Float) {
+        lensSwitchTransition.cancelPendingSwitch()
+        cancelZoomStopAnimation()
         if (viewModel.isVideoLensLocked() ||
             viewModel.isCurrentLensCustomZoomRatioStop(targetZoom)
         ) {
@@ -592,7 +606,7 @@ fun CameraScreen(
             currentCameraId
         )
         if (camera != null && camera.cameraId != currentCamera?.cameraId) {
-            runPreviewTransition {
+            lensSwitchTransition.switchLens(camera.cameraId, targetZoom) {
                 viewModel.switchToLensAndSetZoomRatio(camera.cameraId, targetZoom)
             }
         } else {
@@ -1293,6 +1307,8 @@ fun CameraScreen(
                         )
                     }
 
+                    LensSwitchTransitionOverlay(lensSwitchTransition, Modifier.fillMaxSize())
+
                     val showLivePhotoIndicator =
                         state.captureMode == CaptureMode.PHOTO && useLivePhoto
                     val showVirtualApertureIndicator =
@@ -1514,7 +1530,7 @@ fun CameraScreen(
                 },
                 onSwitchCameraClick = ::switchCameraWithPreviewTransition,
                 onCaptureModeSelected = ::setShootingModeWithPreviewTransition,
-                modeSwitchEnabled = !previewTransitionActive,
+                modeSwitchEnabled = !previewTransitionActive && !lensSwitchTransition.isActive,
                 onCaptureTap = {
                     val shouldDebounceRawCapture =
                         state.useRaw && state.captureMode == CaptureMode.PHOTO

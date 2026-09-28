@@ -24,6 +24,8 @@ import com.hinnka.mycamera.stabilization.normalizeStabilizationLookahead
 import com.hinnka.mycamera.stabilization.normalizeStabilizationStrength
 import com.hinnka.mycamera.utils.PLog
 import com.hinnka.mycamera.video.VideoLogProfile
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 /**
  * 相机预览 GLSurfaceView
@@ -357,6 +359,37 @@ class CameraGLSurfaceView @JvmOverloads constructor(
             requestRenderImmediately = false
         ) { bitmap ->
             bitmap?.let(callback)
+        }
+    }
+
+    /** 等待新会话的画面完成渲染，不能用 session configured 代替画面就绪。 */
+    suspend fun awaitPreviewFrame(minimumTimestampNs: Long) {
+        var listener: ((Long) -> Unit)? = null
+        try {
+            suspendCancellableCoroutine<Unit> { continuation ->
+                val callback: (Long) -> Unit = { timestamp ->
+                    if (timestamp >= minimumTimestampNs) {
+                        renderer.onPreviewFrameRendered = null
+                        post {
+                            if (continuation.isActive) continuation.resume(Unit)
+                        }
+                    }
+                }
+                listener = callback
+                queueEvent {
+                    if (continuation.isActive) {
+                        renderer.onPreviewFrameRendered = callback
+                        requestRender()
+                    }
+                }
+            }
+        } finally {
+            val installedListener = listener
+            queueEvent {
+                if (renderer.onPreviewFrameRendered === installedListener) {
+                    renderer.onPreviewFrameRendered = null
+                }
+            }
         }
     }
 

@@ -1879,7 +1879,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     private var isShutterSoundEnabled = true
     private var isVibrationEnabled = true
 
-    var glSurfaceView: CameraGLSurfaceView? = null
+    var glSurfaceView by mutableStateOf<CameraGLSurfaceView?>(null)
     var isEyeFocusBusy by mutableStateOf(false)
         private set
     var isEyeFocusRuntimeAvailable by mutableStateOf(true)

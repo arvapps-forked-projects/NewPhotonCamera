@@ -338,6 +338,8 @@ data class CameraState(
 
     // 是否处于预览状态
     val isPreviewActive: Boolean = false,
+    // 当前预览会话首个 CaptureResult 的传感器时间戳，用于等待对应画面真正渲染。
+    val previewFirstFrameTimestampNs: Long? = null,
 
     // 是否正在拍照
     val isCapturing: Boolean = false,
