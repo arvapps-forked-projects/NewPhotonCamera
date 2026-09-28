@@ -28,6 +28,8 @@ internal class RawFloatTextureTransfer(private val layout: Layout = Layout.FLOAT
     private var initialized = false
     private var maxSsboBytes = 0L
     private var ssboOffsetAlignment = 1
+    /** Completion of the last upload that sources [buffer]; storage is not reclaimed before it. */
+    private var pendingUploadSync = 0L
 
     /** Allocate before producing the input so allocation/compilation cannot drain that work. */
     fun prepare(width: Int, height: Int, capacityPixels: Long = width.toLong() * height) {
@@ -42,6 +44,7 @@ internal class RawFloatTextureTransfer(private val layout: Layout = Layout.FLOAT
         GLES30.glBindBuffer(GLES30.GL_PIXEL_PACK_BUFFER, buffer)
         try {
             if (capacity < bytes) {
+                awaitPendingUpload()
                 GLES30.glBufferData(GLES30.GL_PIXEL_PACK_BUFFER, bytes, null, GLES30.GL_STREAM_COPY)
                 val error = GLES30.glGetError()
                 if (error == GLES30.GL_OUT_OF_MEMORY) {
@@ -192,6 +195,12 @@ internal class RawFloatTextureTransfer(private val layout: Layout = Layout.FLOAT
             }
             check(uploaded) { "Float PBO upload failed" }
         }
+        // Mali drivers may reclaim a deleted/respecified buffer while queued work still sources it,
+        // leaving stale blocks in the destination texture. Record the upload's completion so the
+        // storage owner waits for this consumer before deleting or reallocating the buffer.
+        awaitPendingUpload()
+        pendingUploadSync = GLES30.glFenceSync(GLES30.GL_SYNC_GPU_COMMANDS_COMPLETE, 0)
+        check(pendingUploadSync != 0L) { "Unable to create float upload fence" }
         PLog.i(TAG, "upload layout=$layout size=${width}x$height transfer=${if (stripeRows > 0) "SSBO_IMAGE" else "PBO"} " +
             "stripeRows=$stripeRows uploadSubmitMs=${elapsedMs(start)}")
     }
@@ -217,10 +226,25 @@ internal class RawFloatTextureTransfer(private val layout: Layout = Layout.FLOAT
         return (capacityPixels * layout.bytesPerPixel).toInt()
     }
 
+    private fun awaitPendingUpload() {
+        val sync = pendingUploadSync
+        if (sync == 0L) return
+        pendingUploadSync = 0L
+        try {
+            GlesGpuCompletion.awaitSync(sync, "float transfer upload")
+        } finally {
+            GLES30.glDeleteSync(sync)
+        }
+    }
+
     fun releaseBuffers() {
-        if (buffer != 0) GLES30.glDeleteBuffers(1, intArrayOf(buffer), 0)
-        if (framebuffer != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(framebuffer), 0)
-        buffer = 0; framebuffer = 0; capacity = 0
+        try {
+            awaitPendingUpload()
+        } finally {
+            if (buffer != 0) GLES30.glDeleteBuffers(1, intArrayOf(buffer), 0)
+            if (framebuffer != 0) GLES30.glDeleteFramebuffers(1, intArrayOf(framebuffer), 0)
+            buffer = 0; framebuffer = 0; capacity = 0
+        }
     }
 
     fun release() {

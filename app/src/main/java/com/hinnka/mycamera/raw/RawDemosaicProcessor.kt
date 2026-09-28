@@ -5458,7 +5458,7 @@ class RawDemosaicProcessor {
             )
             return gfTexId[1]
         } finally {
-            // Buffer deletion defers storage reclamation until the queued upload has consumed it.
+            // Deletion waits for the queued upload that sources this buffer.
             denoiseTransfer.releaseBuffers()
         }
     }
