@@ -1326,4 +1326,7 @@
     <string name="settings_accent_color_reset">Restore default</string>
     <string name="settings_accent_color_hex_hint">Enter a six-digit color in #RRGGBB format.</string>
     <string name="settings_accent_color_hex_error">Enter six hexadecimal digits (0–9, A–F).</string>
+    <string name="category_empty_title">No filters in this category</string>
+    <string name="category_empty_message">Import filters here, or assign existing filters to this category using Edit Category. Empty categories stay until you delete them.</string>
+    <string name="category_name_unavailable">This name is already used or reserved. Choose another name.</string>
 </resources>

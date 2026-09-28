@@ -4253,10 +4253,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * 保存分类排序顺序
      */
-    fun saveCategoryOrder(order: List<String>) {
+    fun saveCategoryOrder(order: List<String>) =
         viewModelScope.launch {
             userPreferencesRepository.saveCategoryOrder(order)
         }
+
+    suspend fun retainLutCategories(categories: List<String>) {
+        userPreferencesRepository.retainLutCategories(categories)
     }
 
     fun setLutSelectorMode(mode: LutSelectorMode) {

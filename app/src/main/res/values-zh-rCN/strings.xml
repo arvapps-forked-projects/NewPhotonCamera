@@ -1302,4 +1302,7 @@
     <string name="settings_accent_color_reset">恢复默认</string>
     <string name="settings_accent_color_hex_hint">输入 #RRGGBB 格式的六位颜色值。</string>
     <string name="settings_accent_color_hex_error">请输入六位十六进制字符（0–9、A–F）。</string>
+    <string name="category_empty_title">此分类暂无滤镜</string>
+    <string name="category_empty_message">可导入滤镜，或通过“编辑分类”将已有滤镜移入。空分类会保留，直到你主动删除。</string>
+    <string name="category_name_unavailable">该名称已被使用或属于系统分类，请换一个名称。</string>
 </resources>

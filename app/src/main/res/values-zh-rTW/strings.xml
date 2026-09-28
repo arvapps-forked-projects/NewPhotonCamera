@@ -1281,4 +1281,7 @@
     <string name="settings_accent_color_reset">還原預設</string>
     <string name="settings_accent_color_hex_hint">輸入 #RRGGBB 格式的六位色碼。</string>
     <string name="settings_accent_color_hex_error">請輸入六位十六進位字元（0–9、A–F）。</string>
+    <string name="category_empty_title">此分類尚無濾鏡</string>
+    <string name="category_empty_message">可匯入濾鏡，或透過「編輯分類」將現有濾鏡移入。空分類會保留，直到你主動刪除。</string>
+    <string name="category_name_unavailable">此名稱已被使用或屬於系統分類，請使用其他名稱。</string>
 </resources>

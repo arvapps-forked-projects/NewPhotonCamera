@@ -14,14 +14,19 @@ fun orderedLutCategoryTitles(
     categoryOrder: List<String>,
     builtInText: String,
     uncategorizedText: String,
-    favoriteText: String? = null
+    favoriteText: String? = null,
+    includeEmptyCategories: Boolean = false
 ): List<String> {
     val reservedCategoryNames = setOfNotNull(builtInText, uncategorizedText, favoriteText)
     val dynamicCategories = luts.map { it.category }
         .distinct()
         .filter { it.isNotEmpty() && it !in reservedCategoryNames }
     val hasUncategorizedLuts = luts.any { !it.isBuiltIn && it.category.isEmpty() }
-    val orderedKnownCategories = categoryOrder.filter { it == builtInText || dynamicCategories.contains(it) }
+    // 管理页保留用户保存的空分类；拍摄和分享等选择器只展示有内容的分类。
+    val orderedKnownCategories = categoryOrder.filter {
+        it == builtInText || (it.isNotBlank() && it !in reservedCategoryNames &&
+            (includeEmptyCategories || it in dynamicCategories))
+    }.distinct()
     val remainingDynamic = dynamicCategories.filterNot { it in orderedKnownCategories }.sorted()
 
     return buildList {

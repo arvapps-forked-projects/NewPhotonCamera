@@ -2,6 +2,7 @@ package com.hinnka.mycamera.data
 
 
 import android.content.Context
+import com.hinnka.mycamera.R
 import com.hinnka.mycamera.model.AppAppearance
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -75,6 +76,7 @@ import com.hinnka.mycamera.processor.PhotonSensorSizeTuning
 import com.hinnka.mycamera.processor.MgcRawMaxMode
 import com.hinnka.mycamera.raw.RawOutputUpscaleMode
 import org.json.JSONObject
+import org.json.JSONArray
 
 /**
  * DataStore 扩展属性
@@ -192,7 +194,7 @@ data class UserPreferences(
     // 排序顺序
     val filterOrder: List<String> = emptyList(),  // 滤镜排序（ID列表）
     val frameOrder: List<String> = emptyList(),    // 边框排序（ID列表）
-    val categoryOrder: List<String> = emptyList(), // 分类排序
+    val categoryOrder: List<String> = emptyList(), // 已保存的分类及排序，允许空分类
     val lutSelectorMode: LutSelectorMode = LutSelectorMode.Style,
     val defaultFocalLength: Float = 0f, // 默认焦段 (mm)，0表示不设置
     val zoomDisplayMode: String = "FOCAL_LENGTH",
@@ -454,6 +456,7 @@ class UserPreferencesRepository(private val context: Context) {
         private val FILTER_ORDER = stringPreferencesKey("filter_order")
         private val FRAME_ORDER = stringPreferencesKey("frame_order")
         private val CATEGORY_ORDER = stringPreferencesKey("category_order")
+        private val CATEGORY_ORDER_JSON = stringPreferencesKey("category_order_json")
         private val LUT_SELECTOR_MODE = stringPreferencesKey("lut_selector_mode")
 
         // 摄像头方向偏移 Key
@@ -782,7 +785,7 @@ class UserPreferencesRepository(private val context: Context) {
                 // 排序
                 filterOrder = preferences[FILTER_ORDER]?.split(",")?.filter { it.isNotEmpty() } ?: emptyList(),
                 frameOrder = preferences[FRAME_ORDER]?.split(",")?.filter { it.isNotEmpty() } ?: emptyList(),
-                categoryOrder = preferences[CATEGORY_ORDER]?.split(",")?.filter { it.isNotEmpty() } ?: emptyList(),
+                categoryOrder = readCategoryOrder(preferences),
                 lutSelectorMode = runCatching {
                     LutSelectorMode.valueOf(preferences[LUT_SELECTOR_MODE] ?: LutSelectorMode.Style.name)
                 }.getOrDefault(LutSelectorMode.Style),
@@ -1894,8 +1897,44 @@ class UserPreferencesRepository(private val context: Context) {
      */
     suspend fun saveCategoryOrder(order: List<String>) {
         context.dataStore.edit { preferences ->
-            preferences[CATEGORY_ORDER] = order.joinToString(",")
+            preferences[CATEGORY_ORDER_JSON] = serializeCategoryOrder(order)
+            preferences.remove(CATEGORY_ORDER)
         }
+    }
+
+    // 删除或移动滤镜前登记其分类，避免最后一个滤镜移出后分类随之消失。
+    suspend fun retainLutCategories(categories: List<String>) {
+        context.dataStore.edit { preferences ->
+            val order = (readCategoryOrder(preferences) + categories).filter { it.isNotBlank() }.distinct()
+            preferences[CATEGORY_ORDER_JSON] = serializeCategoryOrder(order)
+            preferences.remove(CATEGORY_ORDER)
+        }
+    }
+
+    private fun readCategoryOrder(preferences: Preferences): List<String> {
+        val json = preferences[CATEGORY_ORDER_JSON]
+        return if (json != null) {
+            val array = JSONArray(json)
+            List(array.length()) { index ->
+                if (array.optJSONObject(index)?.optString("type") == "built_in") {
+                    context.getString(R.string.built_in)
+                } else {
+                    array.getString(index)
+                }
+            }
+        } else {
+            preferences[CATEGORY_ORDER]?.split(",").orEmpty()
+        }.filter { it.isNotBlank() }.distinct()
+    }
+
+    private fun serializeCategoryOrder(order: List<String>): String {
+        val builtInText = context.getString(R.string.built_in)
+        val array = JSONArray()
+        order.filter { it.isNotBlank() }.distinct().forEach { category ->
+            // 系统分类使用稳定标识，切换语言后不会变成一个自定义空分类。
+            array.put(if (category == builtInText) JSONObject().put("type", "built_in") else category)
+        }
+        return array.toString()
     }
 
     suspend fun saveLutSelectorMode(mode: LutSelectorMode) {
