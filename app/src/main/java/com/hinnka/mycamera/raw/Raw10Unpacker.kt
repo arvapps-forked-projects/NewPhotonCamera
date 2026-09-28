@@ -1,5 +1,7 @@
 package com.hinnka.mycamera.raw
 
+import android.hardware.HardwareBuffer
+import android.media.Image
 import com.hinnka.mycamera.utils.LargeDirectBuffer
 import com.hinnka.mycamera.utils.PLog
 import java.nio.ByteBuffer
@@ -8,6 +10,22 @@ import java.nio.ByteBuffer
 internal object Raw10Unpacker {
     init {
         System.loadLibrary("my-native-lib")
+    }
+
+    private external fun validateHardwareBufferNative(
+        buffer: HardwareBuffer,
+        width: Int,
+        height: Int,
+    ): Boolean
+
+    /** Must run before getPlanes(): malformed RAW10 strides abort inside the framework. */
+    fun validateImageLayout(image: Image) {
+        val hardwareBuffer = checkNotNull(image.hardwareBuffer) { "RAW10 image has no hardware buffer" }
+        hardwareBuffer.use {
+            check(validateHardwareBufferNative(it, image.width, image.height)) {
+                "Invalid RAW10 hardware buffer layout for ${image.width}x${image.height}"
+            }
+        }
     }
 
     private external fun unpackNative(

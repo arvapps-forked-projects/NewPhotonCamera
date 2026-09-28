@@ -2062,6 +2062,8 @@ class Camera2Controller(private val context: Context) {
     }
 
     private fun clearCameraSessionState(reason: String, closeImageReader: Boolean = true) {
+        burstCapturing = false
+        _state.update { it.copy(burstCapturing = false) }
         photoCaptures.values.toList().forEach {
             failPhotoCapture(it, "session cleared: $reason", drainQueue = false)
             disposeFailedPhotoCapture(it)
@@ -3047,6 +3049,9 @@ class Camera2Controller(private val context: Context) {
         }
         val device = cameraDevice ?: return
         val surface = previewSurface ?: return
+        // createCaptureSession closes the previous session before onConfigured runs.
+        // Stop exposing it while the replacement is being configured.
+        invalidateCaptureSession(captureSession, "preview session replacement")
         val captureMode = _state.value.captureMode
         val reader = imageReader
         val stabilizationReader = ensureStabilizationImageReader()
@@ -3117,6 +3122,10 @@ class Camera2Controller(private val context: Context) {
                     },
                     Executor { handler.post(it) },
                     object : CameraCaptureSession.StateCallback() {
+                        override fun onClosed(session: CameraCaptureSession) {
+                            invalidateCaptureSession(session, "video session closed")
+                        }
+
                         override fun onConfigured(session: CameraCaptureSession) {
                             if (openGeneration != cameraOpenGeneration || sessionGeneration != previewSessionGeneration) {
                                 PLog.w(TAG, "Closing stale video preview session")
@@ -3180,6 +3189,10 @@ class Camera2Controller(private val context: Context) {
                 outputConfigs,
                 Executor { handler.post(it) },
                 object : CameraCaptureSession.StateCallback() {
+                    override fun onClosed(session: CameraCaptureSession) {
+                        invalidateCaptureSession(session, "photo session closed")
+                    }
+
                     override fun onConfigured(session: CameraCaptureSession) {
                         if (openGeneration != cameraOpenGeneration || sessionGeneration != previewSessionGeneration) {
                             PLog.w(TAG, "Closing stale preview session")
@@ -8655,7 +8668,30 @@ class Camera2Controller(private val context: Context) {
         }
     }
 
+    private fun invalidateCaptureSession(session: CameraCaptureSession?, reason: String) {
+        // A delayed close callback from the old session must not clear its replacement.
+        if (session == null || captureSession !== session) return
+        captureSession = null
+        previewRequestBuilder = null
+        val wasBurstCapturing = _state.value.burstCapturing
+        burstCapturing = false
+        _state.update {
+            it.copy(
+                isPreviewActive = false,
+                previewFirstFrameTimestampNs = null,
+                burstCapturing = false,
+                isCapturing = if (wasBurstCapturing) false else it.isCapturing,
+            )
+        }
+        if (wasBurstCapturing) {
+            // Release burst preparation without submitting requests to the retired session.
+            resetPreviewAfterCapture()
+        }
+        PLog.d(TAG, "Capture session invalidated: $reason")
+    }
+
     private fun safeCloseCaptureSession(session: CameraCaptureSession?, reason: String) {
+        invalidateCaptureSession(session, reason)
         try {
             session?.close()
         } catch (e: SecurityException) {
@@ -8701,6 +8737,8 @@ class Camera2Controller(private val context: Context) {
         shot: PhotoCaptureContext,
     ) {
         try {
+            // Reject malformed HAL buffers while this capture still owns its failure/cleanup path.
+            image.validateBufferLayout()
             val width = image.width
             val height = image.height
             val reportedPhysicalCameraId = result
@@ -9064,14 +9102,23 @@ class Camera2Controller(private val context: Context) {
             }
             return
         }
+        if (!_state.value.burstCapturing) return
         PLog.d(TAG, "Stop Burst Capture")
-        try {
-            captureSession?.abortCaptures()
-        } catch (e: CameraAccessException) {
-            PLog.w(TAG, "camera inaccessible during burst stop")
-        }
-        resetPreviewAfterCapture()
+        val session = captureSession
+        // Disable continuation before aborting; completion callbacks must not queue another batch.
         burstCapturing = false
-        _state.value = _state.value.copy(burstCapturing = false, isCapturing = false)
+        _state.update { it.copy(burstCapturing = false, isCapturing = false) }
+        try {
+            session?.abortCaptures()
+        } catch (e: CameraAccessException) {
+            PLog.w(TAG, "Camera inaccessible during burst stop", e)
+            invalidateCaptureSession(session, "camera inaccessible during burst stop")
+        } catch (e: IllegalStateException) {
+            // The framework can close the session before its onClosed callback reaches us.
+            PLog.w(TAG, "Capture session closed during burst stop", e)
+            invalidateCaptureSession(session, "session closed during burst stop")
+        } finally {
+            resetPreviewAfterCapture()
+        }
     }
 }

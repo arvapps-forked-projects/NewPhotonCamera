@@ -460,6 +460,7 @@ target_link_libraries(
     log
 )
 add_library(my-native-lib SHARED 
+    native_runtime.cpp
     native-lib.cpp
     spektrafilm/spectral_data.cpp
     spektrafilm/spectral_filming.cpp

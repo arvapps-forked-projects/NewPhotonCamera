@@ -12,6 +12,7 @@ class SafeImage(val image: Image, private val camera2Controller: Camera2Controll
     private val closed = AtomicBoolean(false)
     private var unpackedRawBuffer: ByteBuffer? = null
     private var processingPlanes: Array<Plane>? = null
+    private var bufferLayoutValidated = false
 
     /** Original camera output; [format] and [planes] describe the processing representation. */
     val sourceFormat: Int = image.format
@@ -32,6 +33,7 @@ class SafeImage(val image: Image, private val camera2Controller: Camera2Controll
         get() = synchronized(this) {
             check(!closed.get()) { "Image is already closed" }
             processingPlanes?.let { return@synchronized it }
+            validateBufferLayout()
             val resolved = if (sourceFormat == ImageFormat.RAW10) {
                 // Decode on first pixel access, on the processing thread rather than the camera callback.
                 val sourcePlane = image.planes.single()
@@ -57,6 +59,17 @@ class SafeImage(val image: Image, private val camera2Controller: Camera2Controll
         }
     val timestamp: Long
         get() = image.timestamp
+
+    /** Validate descriptors before handing a frame to consumers, without unpacking pixels. */
+    @Synchronized
+    internal fun validateBufferLayout() {
+        check(!closed.get()) { "Image is already closed" }
+        if (bufferLayoutValidated) return
+        if (sourceFormat == ImageFormat.RAW10) {
+            Raw10Unpacker.validateImageLayout(image)
+        }
+        bufferLayoutValidated = true
+    }
 
     @Synchronized
     override fun close() {
