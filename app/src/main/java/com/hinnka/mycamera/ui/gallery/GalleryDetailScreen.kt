@@ -390,8 +390,13 @@ fun GalleryDetailScreen(
         }
     }
 
-    BackHandler {
-        onBack()
+    fun leaveDetail(onNavigate: () -> Unit) {
+        viewModel.requestGalleryScrollToPhoto(photos.getOrNull(pagerState.currentPage)?.id)
+        onNavigate()
+    }
+
+    BackHandler(enabled = !isExpanded) {
+        leaveDetail(onBack)
     }
 
     Scaffold(
@@ -401,7 +406,7 @@ fun GalleryDetailScreen(
                 title = {
                     if (onGoToGallery != null) {
                         Surface(
-                            onClick = onGoToGallery,
+                            onClick = { leaveDetail(onGoToGallery) },
                             shape = CircleShape,
                             color = Color.White.copy(alpha = 0.15f),
                             contentColor = Color.White
@@ -434,7 +439,7 @@ fun GalleryDetailScreen(
                 },
                 navigationIcon = {
                     if (!isExpanded) {
-                        IconButton(onClick = onBack, modifier = Modifier.autoRotate()) {
+                        IconButton(onClick = { leaveDetail(onBack) }, modifier = Modifier.autoRotate()) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.back),

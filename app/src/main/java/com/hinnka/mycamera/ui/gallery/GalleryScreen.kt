@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.widget.Toast
 import android.view.LayoutInflater
 import android.widget.ImageView
+import android.widget.CheckBox
 import android.widget.TextView
 import android.os.Build
 import android.view.View
@@ -609,6 +610,7 @@ fun GalleryScreen(
                     selectedPhotos = selectedPhotos,
                     processingPhotos = processingPhotos,
                     isSelectionMode = isSelectionMode,
+                    isSelectionEnabled = !isBatchOperationRunning,
                     isLoadingMore = (selectedTab == GalleryTab.SYSTEM && isSystemLoadingMore) ||
                             (selectedTab == GalleryTab.PHOTON && isPhotonLoadingMore),
                     onPhotoClick = onPhotoClick,
@@ -744,6 +746,7 @@ private fun GalleryRecyclerGrid(
     selectedPhotos: List<MediaData>,
     processingPhotos: Map<String, ProcessingPhoto>,
     isSelectionMode: Boolean,
+    isSelectionEnabled: Boolean,
     isLoadingMore: Boolean,
     onPhotoClick: (GalleryTab, Int) -> Unit,
     onLoadMore: () -> Unit,
@@ -850,6 +853,7 @@ private fun GalleryRecyclerGrid(
                     selectedPhotoIds = selectedPhotoIds,
                     processingPhotos = processingPhotos,
                     isSelectionMode = isSelectionMode,
+                    isSelectionEnabled = isSelectionEnabled,
                     isLoadingMore = isLoadingMore,
                     isLandscape = OrientationObserver.isLandscape,
                     rotationDegrees = OrientationObserver.rotationDegrees,
@@ -871,6 +875,19 @@ private fun GalleryRecyclerGrid(
                 (recyclerView.layoutManager as? StaggeredGridLayoutManager)?.invalidateSpanAssignments()
 
                 fastScroller.setEntries(entries)
+
+                // 详情页传回照片 ID；日期标题和全宽照片使网格位置不同于照片索引。
+                val scrollTarget = viewModel.galleryScrollTarget
+                if (layoutManager != null && scrollTarget?.tab == selectedTab) {
+                    val targetPosition = entries.indexOfFirst {
+                        it is GalleryGridEntry.Photo && it.photo.id == scrollTarget.photoId
+                    }
+                    if (targetPosition >= 0) {
+                        layoutManager.scrollToPositionWithOffset(targetPosition, 0)
+                        PLog.d("GalleryScreen", "Located ${scrollTarget.photoId} at grid position $targetPosition")
+                        viewModel.consumeGalleryScrollTarget(scrollTarget)
+                    }
+                }
             }
         )
     }
@@ -1071,6 +1088,7 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
     private var selectedPhotoIds: Set<String> = emptySet()
     private var processingPhotos: Map<String, ProcessingPhoto> = emptyMap()
     private var isSelectionMode: Boolean = false
+    private var isSelectionEnabled: Boolean = true
     private var isLoadingMore: Boolean = false
     private var isLandscape: Boolean = false
     private var rotationDegrees: Float = 0f
@@ -1088,6 +1106,7 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
         selectedPhotoIds: Set<String>,
         processingPhotos: Map<String, ProcessingPhoto>,
         isSelectionMode: Boolean,
+        isSelectionEnabled: Boolean,
         isLoadingMore: Boolean,
         isLandscape: Boolean,
         rotationDegrees: Float,
@@ -1099,6 +1118,7 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
         val oldSelectedPhotoIds = this.selectedPhotoIds
         val oldProcessingPhotos = this.processingPhotos
         val oldIsSelectionMode = this.isSelectionMode
+        val oldIsSelectionEnabled = this.isSelectionEnabled
         val oldIsLandscape = this.isLandscape
         val oldRotationDegrees = this.rotationDegrees
 
@@ -1108,6 +1128,7 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
         this.selectedPhotoIds = selectedPhotoIds
         this.processingPhotos = processingPhotos
         this.isSelectionMode = isSelectionMode
+        this.isSelectionEnabled = isSelectionEnabled
         this.isLoadingMore = isLoadingMore
         this.isLandscape = isLandscape
         this.rotationDegrees = rotationDegrees
@@ -1143,7 +1164,10 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
                 if (oldIsSelectionMode != isSelectionMode || oldIsLandscape != isLandscape || oldRotationDegrees != rotationDegrees) return false
 
                 return when {
-                    oldEntry is GalleryGridEntry.Header && newEntry is GalleryGridEntry.Header -> oldEntry.title == newEntry.title
+                    oldEntry is GalleryGridEntry.Header && newEntry is GalleryGridEntry.Header ->
+                        oldEntry == newEntry && oldIsSelectionEnabled == isSelectionEnabled &&
+                            oldSelectedPhotoIds == selectedPhotoIds &&
+                            oldProcessingPhotos.keys == processingPhotos.keys
                     oldEntry is GalleryGridEntry.Photo && newEntry is GalleryGridEntry.Photo -> {
                         val id = oldEntry.photo.id
                         val wasSelected = id in oldSelectedPhotoIds
@@ -1180,7 +1204,7 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
             VIEW_TYPE_HEADER -> HeaderHolder(
-                LayoutInflater.from(parent.context).inflate(R.layout.item_gallery_header, parent, false) as TextView
+                LayoutInflater.from(parent.context).inflate(R.layout.item_gallery_header, parent, false)
             )
 
             VIEW_TYPE_LOADING -> LoadingHolder(
@@ -1206,7 +1230,14 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
 
         when (val entry = entries[position]) {
             is GalleryGridEntry.Header -> {
-                (holder.itemView as TextView).text = entry.title
+                val selectable = entry.photos.filterNot { it.id in processingPhotos }
+                (holder as HeaderHolder).bind(
+                    title = entry.title,
+                    isSelectionMode = isSelectionMode,
+                    isEnabled = isSelectionEnabled && selectable.isNotEmpty(),
+                    isChecked = selectable.isNotEmpty() && selectable.all { it.id in selectedPhotoIds },
+                    onClick = { viewModel?.togglePhotoGroupSelection(entry.photos) }
+                )
             }
 
             is GalleryGridEntry.Photo -> {
@@ -1256,7 +1287,29 @@ private class GalleryRecyclerAdapter : RecyclerView.Adapter<RecyclerView.ViewHol
         this is GalleryGridEntry.Header ||
                 (this is GalleryGridEntry.Photo && photo.shouldUseFullLineSpan())
 
-    private class HeaderHolder(view: TextView) : RecyclerView.ViewHolder(view)
+    private class HeaderHolder(view: View) : RecyclerView.ViewHolder(view) {
+        private val titleView = view.findViewById<TextView>(R.id.gallery_header_title)
+        private val selection = view.findViewById<CheckBox>(R.id.gallery_header_selection)
+
+        fun bind(
+            title: String,
+            isSelectionMode: Boolean,
+            isEnabled: Boolean,
+            isChecked: Boolean,
+            onClick: () -> Unit
+        ) {
+            titleView.text = title
+            selection.contentDescription = title
+            selection.visibility = if (isSelectionMode) View.VISIBLE else View.GONE
+            selection.isEnabled = isEnabled
+            selection.alpha = if (isEnabled) 1f else 0.38f
+            selection.isChecked = isChecked
+            selection.setButtonDrawable(
+                if (isChecked) R.drawable.ic_gallery_check_circle else R.drawable.ic_gallery_radio_unchecked
+            )
+            selection.setOnClickListener { onClick() }
+        }
+    }
     private class LoadingHolder(view: View) : RecyclerView.ViewHolder(view)
     private class PhotoHolder(
         private val view: GalleryPhotoItemView

@@ -88,6 +88,11 @@ data class GalleryBatchOperationProgress(
     val total: Int
 )
 
+data class GalleryScrollTarget(
+    val tab: GalleryTab,
+    val photoId: String
+)
+
 private data class CopiedEditSettings(
     val metadata: MediaMetadata,
     val normalizedCropRect: RectF?
@@ -254,6 +259,20 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     // 当前查看的照片索引
     var currentPhotoIndex by mutableStateOf(0)
         private set
+
+    var galleryScrollTarget by mutableStateOf<GalleryScrollTarget?>(null)
+        private set
+
+    fun requestGalleryScrollToPhoto(photoId: String?) {
+        galleryScrollTarget = photoId?.let { GalleryScrollTarget(selectedTab, it) }
+        PLog.d(TAG, "Gallery return target: $galleryScrollTarget")
+    }
+
+    fun consumeGalleryScrollTarget(target: GalleryScrollTarget) {
+        if (galleryScrollTarget == target) {
+            galleryScrollTarget = null
+        }
+    }
 
     // 编辑状态
     var isEditing by mutableStateOf(false)
@@ -937,6 +956,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
      */
     suspend fun selectTab(tab: GalleryTab) {
         if (selectedTab != tab) {
+            galleryScrollTarget = null
             selectedTab = tab
             loadCurrentTabData()
         }
@@ -1574,6 +1594,26 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
 
         // 如果没有选中的照片，退出多选模式
+        if (selectedPhotos.isEmpty()) {
+            exitSelectionMode()
+        }
+    }
+
+    /**
+     * 按日期分组全选/取消全选，排除正在处理的照片。
+     */
+    fun togglePhotoGroupSelection(photos: List<MediaData>) {
+        if (!isSelectionMode || _isExporting.value || _isPastingSettings.value) return
+        val selectable = photos.filterNot { it.id in processingPhotos.value }
+        if (selectable.isEmpty()) return
+
+        val selectedIds = selectedPhotos.mapTo(mutableSetOf()) { it.id }
+        if (selectable.all { it.id in selectedIds }) {
+            val groupIds = selectable.mapTo(mutableSetOf()) { it.id }
+            selectedPhotos.removeAll { it.id in groupIds }
+        } else {
+            selectedPhotos.addAll(selectable.filterNot { it.id in selectedIds })
+        }
         if (selectedPhotos.isEmpty()) {
             exitSelectionMode()
         }

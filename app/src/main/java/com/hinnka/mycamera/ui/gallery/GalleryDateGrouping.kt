@@ -13,7 +13,8 @@ import java.time.temporal.ChronoUnit
 internal sealed interface GalleryGridEntry {
     data class Header(
         val key: String,
-        val title: String
+        val title: String,
+        val photos: List<MediaData>
     ) : GalleryGridEntry
 
     data class Photo(
@@ -40,7 +41,8 @@ internal fun buildGalleryGridEntries(
                 add(
                     GalleryGridEntry.Header(
                         key = "header_$date",
-                        title = formatGalleryGroupTitle(context, date.atStartOfDay(zoneId), today)
+                        title = formatGalleryGroupTitle(context, date.atStartOfDay(zoneId), today),
+                        photos = groupedPhotos.map { it.value }
                     )
                 )
                 groupedPhotos.forEach { indexedPhoto ->

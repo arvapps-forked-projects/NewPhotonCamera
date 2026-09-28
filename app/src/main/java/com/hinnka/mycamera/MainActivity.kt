@@ -622,6 +622,14 @@ fun NavigationHost(
             navController.popBackStack()
         }
     }
+    val returnToGallery: () -> Unit = {
+        if (!navController.popBackStack(Routes.GALLERY, inclusive = false)) {
+            navController.navigate(Routes.GALLERY) {
+                popUpTo(Routes.CAMERA)
+                launchSingleTop = true
+            }
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(pendingRoute) {
         pendingRoute?.let {
@@ -631,7 +639,7 @@ fun NavigationHost(
     }
     BackHandler(
         enabled = externalGalleryReviewReturnToCaller &&
-            (currentRoute == Routes.GALLERY || currentRoute == Routes.PHOTO_DETAIL)
+            currentRoute == Routes.GALLERY
     ) {
         onExternalGalleryReviewBack()
     }
@@ -809,12 +817,8 @@ fun NavigationHost(
                     initialIndex = index,
                     selectedTab = GalleryTab.valueOf(tab),
                     photoId = photoId,
-                    onBack = handleGalleryBack,
-                    onGoToGallery = {
-                        navController.navigate(Routes.GALLERY) {
-                            popUpTo(Routes.CAMERA)
-                        }
-                    },
+                    onBack = returnToGallery,
+                    onGoToGallery = returnToGallery,
                     onEdit = {
                         navController.navigate(Routes.PHOTO_EDIT)
                     },
