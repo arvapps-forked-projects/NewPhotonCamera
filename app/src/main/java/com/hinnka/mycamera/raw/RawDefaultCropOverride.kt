@@ -3,7 +3,6 @@ package com.hinnka.mycamera.raw
 import android.graphics.Rect
 import com.hinnka.mycamera.camera.AspectRatio
 import com.hinnka.mycamera.camera.RawBlackBorderCrop
-import com.hinnka.mycamera.utils.BitmapUtils
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -86,17 +85,7 @@ internal object RawDefaultCropOverride {
         metadataDefaultCrop: Rect?,
     ): Rect {
         val safeMetadataCrop = sanitizeCropWithinImage(metadataDefaultCrop, width, height)
-        if (safeMetadataCrop == null) {
-            val calculated = BitmapUtils.calculateProcessedRect(
-                width = width,
-                height = height,
-                aspectRatio = aspectRatio,
-                cropRegion = userCrop,
-                rotation = 0,
-            )
-            return alignToBayerPhase(calculated, width, height)
-                ?: Rect(0, 0, width and -2, height and -2)
-        }
+            ?: Rect(0, 0, width, height)
 
         val safeUserCrop = sanitizeUserCrop(userCrop, width, height)
         val userCropInsideMetadata = safeUserCrop
@@ -105,7 +94,10 @@ internal object RawDefaultCropOverride {
                 Rect(safeMetadataCrop).takeIf { it.intersect(user) && !it.isEmpty }
             }
         val baseCrop = userCropInsideMetadata ?: safeMetadataCrop
-        val sourceIsLandscape = baseCrop.width() >= baseCrop.height()
+        // DefaultCrop may already contain the requested aspect crop. Its shape must not
+        // redefine the RAW coordinate axes: a 3:4 crop of a landscape sensor is still
+        // interpreted in that sensor's orientation on every subsequent render.
+        val sourceIsLandscape = width >= height
         val resolved = if (
             aspectRatio != null &&
             !baseCrop.hasEquivalentAspect(aspectRatio, sourceIsLandscape)
