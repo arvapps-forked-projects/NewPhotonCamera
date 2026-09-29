@@ -1,5 +1,8 @@
 package com.hinnka.mycamera.lut.synthesis
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+import com.hinnka.mycamera.ui.components.AppSheetStyle
+
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.widget.Toast
@@ -498,10 +501,9 @@ fun LutSynthesisScreen(
     // 弹出式：LUT 选择器 BottomSheet (精致磨砂)
     if (showLutSelector) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showLutSelector = false },
             sheetState = sheetState,
-            containerColor = Color(0xFF161616),
             contentColor = Color.White,
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
         ) {
@@ -555,12 +557,12 @@ fun LutSynthesisScreen(
     // 弹出式：调色烘焙参数控制 BottomSheet (精致磨砂)
     if (showBakeParamsSheet) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
+        AppModalBottomSheet(
+            containerColor = Color.Transparent,
+            style = AppSheetStyle.Translucent,
             onDismissRequest = { showBakeParamsSheet = false },
             sheetState = sheetState,
-            containerColor = Color.Transparent,
             contentColor = Color.White,
-            scrimColor = Color.Transparent,
             dragHandle = null,
         ) {
 

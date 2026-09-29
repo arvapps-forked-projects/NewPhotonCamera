@@ -1,5 +1,8 @@
 package com.hinnka.mycamera.mgc
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+import com.hinnka.mycamera.ui.components.AppSheetStyle
+
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color as AndroidColor
@@ -16,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -173,11 +175,11 @@ private fun MgcFilterSelectionRoute(
 
     if (editingLutId == null) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
+        AppModalBottomSheet(
+            containerColor = Color.Black.copy(alpha = 0.8f),
+            style = AppSheetStyle.Translucent,
             onDismissRequest = onDismiss,
             sheetState = sheetState,
-            containerColor = Color.Black.copy(alpha = 0.8f),
-            scrimColor = Color.Transparent,
         ) {
             val currentLut = sortedLuts.firstOrNull { it.id == activeLutId }
             Row(

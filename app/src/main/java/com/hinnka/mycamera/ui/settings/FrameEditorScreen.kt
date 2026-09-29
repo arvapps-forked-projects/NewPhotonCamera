@@ -1,5 +1,7 @@
 package com.hinnka.mycamera.ui.settings
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.net.Uri
@@ -45,7 +47,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ScrollableTabRow
@@ -1034,9 +1035,8 @@ private fun FrameElementsTab(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     if (editingElement != null) {
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { editingElementId = null },
-            containerColor = Color(0xFF1A1A1A),
             contentColor = Color.White,
             sheetState = sheetState
         ) {

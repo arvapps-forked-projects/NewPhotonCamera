@@ -1,8 +1,10 @@
 package com.hinnka.mycamera.ui.camera
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+import com.hinnka.mycamera.ui.components.AppSheetStyle
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -89,15 +91,15 @@ fun LutEditBottomSheet(
         }
     }
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
+        containerColor = containerColor,
+        style = AppSheetStyle.Translucent,
         onDismissRequest = {
             flushLutSave()
             onDismiss()
         },
         sheetState = sheetState,
-        containerColor = containerColor,
         modifier = modifier,
-        scrimColor = Color.Transparent,
         dragHandle = null,
     ) {
         Column(

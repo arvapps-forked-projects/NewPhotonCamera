@@ -1,5 +1,7 @@
 package com.hinnka.mycamera.ui.gallery
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -1224,14 +1226,13 @@ fun GalleryDetailScreen(
         }
 
         @OptIn(ExperimentalMaterial3Api::class)
-        ModalBottomSheet(
-            onDismissRequest = { showMoreSheet = false },
-            sheetState = moreSheetState,
+        AppModalBottomSheet(
             containerColor = GallerySheetSurface,
-            contentColor = GalleryToolbarContent,
             shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
             scrimColor = Color.Black.copy(alpha = 0.64f),
-            tonalElevation = 0.dp,
+            onDismissRequest = { showMoreSheet = false },
+            sheetState = moreSheetState,
+            contentColor = GalleryToolbarContent,
             dragHandle = {
                 BottomSheetDefaults.DragHandle(
                     width = 36.dp,
@@ -1309,10 +1310,10 @@ private fun AiScoreBottomSheet(
         )
     }
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
+        containerColor = AiEditorialBackground,
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
-        containerColor = AiEditorialBackground,
         dragHandle = {
             BottomSheetDefaults.DragHandle(color = AiEditorialOnSurface.copy(alpha = 0.28f))
         }

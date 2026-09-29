@@ -1,5 +1,7 @@
 package com.hinnka.mycamera.ui.settings
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+
 import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -1419,11 +1421,11 @@ fun FilterManagementScreen(
 
         // 分类管理页面 (弹出式)
         if (showCategoryManagement) {
-            ModalBottomSheet(
+            AppModalBottomSheet(
+                containerColor = backgroundColor,
                 onDismissRequest = {
                     showCategoryManagement = false
                 },
-                containerColor = backgroundColor,
                 dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.3f)) }
             ) {
                 CategoryManagementSheet(

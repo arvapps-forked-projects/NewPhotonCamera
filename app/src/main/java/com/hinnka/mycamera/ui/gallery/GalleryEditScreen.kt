@@ -1949,8 +1949,7 @@ fun GalleryEditScreen(
             onDismiss = {
                 showBaselineLutEditSheet = false
                 showRawBaselineLutSelectorSheet = true
-            },
-            containerColor = Color.Transparent
+            }
         )
     }
 

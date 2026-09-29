@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -31,7 +30,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.hinnka.mycamera.ui.theme.AccentColor
 import com.hinnka.mycamera.ui.theme.OnAccentColor
-import com.hinnka.mycamera.BuildConfig
 import com.hinnka.mycamera.R
 import com.hinnka.mycamera.camera.AspectRatio
 import com.hinnka.mycamera.camera.MeteringMode
@@ -40,13 +38,12 @@ import com.hinnka.mycamera.raw.HncsFilmCurveMode
 import com.hinnka.mycamera.raw.RawRenderingEngine
 import com.hinnka.mycamera.raw.RawToneMappingParameters
 import com.hinnka.mycamera.raw.SpectralFilmSelection
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
 import com.hinnka.mycamera.ui.components.RawDcpLensOption
 import com.hinnka.mycamera.ui.components.RawRenderingEngineSettingsPanel
 import com.hinnka.mycamera.video.*
 import com.hinnka.mycamera.video.VideoCodec
 import com.hinnka.mycamera.ui.icons.AppIcons
-import com.hinnka.mycamera.utils.PLog
-import kotlinx.coroutines.flow.filterNotNull
 
 private enum class VideoSettingPanel {
     ASPECT_RATIO,
@@ -499,53 +496,26 @@ fun CameraTopSheet(
     }
 
     if (showRenderingEngineSheet) {
-        val renderingEngineSheetState = rememberModalBottomSheetState()
-        val renderingEngineScrollState = rememberScrollState()
-        if (BuildConfig.DEBUG) {
-            LaunchedEffect(renderingEngineSheetState, renderingEngineScrollState) {
-                snapshotFlow {
-                    if (renderingEngineSheetState.hasExpandedState) {
-                        renderingEngineSheetState.currentValue to renderingEngineSheetState.targetValue
-                    } else {
-                        null
-                    }
-                }.filterNotNull().collect { (current, target) ->
-                    PLog.d(
-                        "RenderingEngineSheet",
-                        "state=$current target=$target offset=${renderingEngineSheetState.requireOffset()} " +
-                            "scroll=${renderingEngineScrollState.value}/${renderingEngineScrollState.maxValue}"
-                    )
-                }
-            }
-        }
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showRenderingEngineSheet = false },
-            sheetState = renderingEngineSheetState,
-            // Keep the top inset outside the draggable surface. Offset-dependent content insets
-            // can resize a near-full-height sheet and snap its expanded anchor back during a drag.
-            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
-            contentWindowInsets = { WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom) },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
+            Text(
+                text = stringResource(R.string.settings_raw_color_engine),
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            // Fill the sheet so switching engines only changes the scroll range, never the anchors.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onSizeChanged { size ->
-                        if (BuildConfig.DEBUG) {
-                            PLog.d("RenderingEngineSheet", "viewport=${size.width}x${size.height}")
-                        }
-                    }
-                    .verticalScroll(renderingEngineScrollState)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 4.dp, bottom = 8.dp)
             ) {
-                Text(
-                    text = stringResource(R.string.settings_raw_color_engine),
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
                 RawRenderingEngineSettingsPanel(
                     selectedDcpId = rawDcpId,
                     rawDcpIdsByLens = rawDcpIdsByLens,

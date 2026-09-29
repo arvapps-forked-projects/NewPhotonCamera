@@ -1292,9 +1292,8 @@ private fun RawRenderingEngineSelector(
     }
 
     if (showSheet) {
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showSheet = false },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1492,9 +1491,8 @@ fun RawDcpSelector(
     if (showSheet) {
         val selectedLens = lensOptions.firstOrNull { it.id == selectingLensId }
         val isSelectingTarget = selectingUnifiedDcp || selectedLens != null
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showSheet = false },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -1755,9 +1753,8 @@ fun RawNoiseProfileSelector(
     if (showSheet) {
         val selectedLens = lensOptions.firstOrNull { it.id == selectingLensId }
         val isSelectingTarget = selectingUnifiedProfile || selectedLens != null
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showSheet = false },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) },
         ) {
             Column(
@@ -2119,15 +2116,15 @@ fun RawBaselineColorCorrectionBottomSheet(
     availableLuts: List<LutInfo>,
     thumbnail: Bitmap?,
     title: String = stringResource(R.string.settings_baseline_raw_title),
-    containerColor: Color = Color(0xFF1E1E1E),
+    containerColor: Color? = null,
     onSelectLut: (String?) -> Unit,
     onEditRecipe: ((String) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
+    AppModalBottomSheet(
         containerColor = containerColor,
-        scrimColor = Color.Transparent,
+        style = AppSheetStyle.Translucent,
+        onDismissRequest = onDismiss,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
     ) {
         Column(
@@ -2247,9 +2244,8 @@ fun RawSpectralFilmSelector(
     }
 
     if (showSheet) {
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showSheet = false },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -2357,9 +2353,8 @@ fun RawSpectralPrintSelector(
     }
 
     if (showSheet) {
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = { showSheet = false },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {

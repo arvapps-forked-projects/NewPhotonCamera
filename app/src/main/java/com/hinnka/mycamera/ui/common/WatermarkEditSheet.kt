@@ -1,5 +1,9 @@
 package com.hinnka.mycamera.ui.common
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+import com.hinnka.mycamera.ui.components.AppSheetStyle
+import com.hinnka.mycamera.ui.components.rememberAppModalBottomSheetState
+
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,7 +37,7 @@ fun WatermarkEditSheet(
     onImportFont: (Uri) -> String? = { null }, // Returns the stored font path/id
     onImportLogo: (Uri) -> String? = { null } // Returns the stored logo path
 ) {
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberAppModalBottomSheetState()
     val properties = remember(customProperties) {
         mutableStateMapOf<String, String>().apply {
             putAll(customProperties)
@@ -65,12 +69,11 @@ fun WatermarkEditSheet(
         }
     }
 
-    ModalBottomSheet(
+    AppModalBottomSheet(
+        style = AppSheetStyle.Translucent,
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1A1A1A),
         contentColor = Color.White,
-        scrimColor = Color.Transparent
     ) {
         Column(
             modifier = Modifier

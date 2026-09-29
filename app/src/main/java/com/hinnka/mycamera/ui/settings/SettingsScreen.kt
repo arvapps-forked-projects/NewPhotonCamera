@@ -1,5 +1,7 @@
 package com.hinnka.mycamera.ui.settings
 
+import com.hinnka.mycamera.ui.components.AppModalBottomSheet
+
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -66,7 +68,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -5622,13 +5623,12 @@ private fun RawDngMetadataCorrectionSetting(
 
     if (showSheet) {
         val selectedLens = lensOptions.firstOrNull { it.id == selectingLensId }
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = {
                 showSheet = false
                 selectingLensId = null
                 editingCorrections = null
             },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
             Column(
@@ -5874,12 +5874,11 @@ private fun CameraOrientationSetting(
 
     if (showSheet) {
         val selectedLens = lensOptions.firstOrNull { it.id == selectingLensId }
-        ModalBottomSheet(
+        AppModalBottomSheet(
             onDismissRequest = {
                 showSheet = false
                 selectingLensId = null
             },
-            containerColor = Color(0xFF1E1E1E),
             dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.2f)) }
         ) {
             Column(
