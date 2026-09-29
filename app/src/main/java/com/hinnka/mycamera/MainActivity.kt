@@ -817,7 +817,14 @@ fun NavigationHost(
                     initialIndex = index,
                     selectedTab = GalleryTab.valueOf(tab),
                     photoId = photoId,
-                    onBack = returnToGallery,
+                    onBack = {
+                        if (externalGalleryReviewReturnToCaller ||
+                            navController.previousBackStackEntry?.destination?.route != Routes.GALLERY
+                        ) {
+                            galleryViewModel.requestGalleryScrollToPhoto(null)
+                        }
+                        handleGalleryBack()
+                    },
                     onGoToGallery = returnToGallery,
                     onEdit = {
                         navController.navigate(Routes.PHOTO_EDIT)
