@@ -133,7 +133,7 @@ object FrameTemplateParser {
         require(version in 1..FrameTemplate.CURRENT_VERSION) { "Unsupported frame template version: $version" }
         if (version == 1) migrateLegacyDesignPixels(obj)
         
-        return FrameTemplate(
+        val template = FrameTemplate(
             id = obj.getString("id"),
             nameMap = parseNameMap(obj.opt("name")),
             version = FrameTemplate.CURRENT_VERSION,
@@ -141,6 +141,11 @@ object FrameTemplateParser {
             elements = parseElements(obj.getJSONArray("elements")),
             elementsTop = obj.optJSONArray("elementsTop")?.let { parseElements(it) }
         )
+        if (version >= 3) {
+            val errors = validateTemplate(template)
+            require(errors.isEmpty()) { "Invalid frame template fields: ${errors.joinToString()}" }
+        }
+        return template
     }
 
     /** Convert original dp/sp values to design pixels at the 4096 × 3072 reference size. */
@@ -301,19 +306,46 @@ object FrameTemplateParser {
 
         template.elements.forEachIndexed { index, element ->
             validateElement(element, "elements[$index]", errors)
+            if (template.layout.position == FramePosition.IMAGE && element.placement != null) {
+                errors += "elements[$index].placement"
+            }
         }
 
         template.elementsTop?.forEachIndexed { index, element ->
             validateElement(element, "elementsTop[$index]", errors)
+            if (template.layout.position == FramePosition.IMAGE && element.placement != null) {
+                errors += "elementsTop[$index].placement"
+            }
         }
 
         return errors
     }
 
     private fun validateElement(element: FrameElement, path: String, errors: MutableList<String>) {
+        element.placement?.let { placement ->
+            with(placement) {
+                validateRange(x, 0f..1f, "$path.placement.x", errors)
+                validateRange(y, 0f..1f, "$path.placement.y", errors)
+                validateRange(anchorX, 0f..1f, "$path.placement.anchorX", errors)
+                validateRange(anchorY, 0f..1f, "$path.placement.anchorY", errors)
+                if (!widthFraction.isFinite() || widthFraction <= 0f || widthFraction > 1f) {
+                    errors += "$path.placement.widthFraction"
+                }
+                validateRange(rotation, -180f..180f, "$path.placement.rotation", errors)
+                validateRange(opacity, 0f..1f, "$path.placement.opacity", errors)
+            }
+        }
         when (element) {
             is FrameElement.Text -> {
                 validateDimension(element.fontSizePx, "$path.fontSize", errors)
+                with(element.style) {
+                    validateRange(letterSpacingEm, -0.1f..1f, "$path.style.letterSpacingEm", errors)
+                    validateRange(lineSpacingMultiplier, 0.5f..3f, "$path.style.lineSpacingMultiplier", errors)
+                    validateDimension(strokeWidthPx, "$path.style.strokeWidth", errors)
+                    validateDimension(shadowRadiusPx, "$path.style.shadowRadius", errors)
+                    validateDimension(shadowOffsetXPx, "$path.style.shadowOffsetX", errors, allowNegative = true)
+                    validateDimension(shadowOffsetYPx, "$path.style.shadowOffsetY", errors, allowNegative = true)
+                }
             }
 
             is FrameElement.Logo -> {
@@ -333,6 +365,15 @@ object FrameTemplateParser {
                 validateDimension(element.widthPx, "$path.width", errors)
             }
         }
+    }
+
+    private fun validateRange(
+        value: Float,
+        range: ClosedFloatingPointRange<Float>,
+        path: String,
+        errors: MutableList<String>,
+    ) {
+        if (!value.isFinite() || value !in range) errors += path
     }
 
     private fun validateDimension(
@@ -425,6 +466,14 @@ object FrameTemplateParser {
                 element.format?.let { put("format", it) }
                 element.prefix?.let { put("prefix", it) }
                 element.suffix?.let { put("suffix", it) }
+                if (element.style != FrameTextStyle()) {
+                    put("style", serializeTextStyle(element.style))
+                }
+                if (element.textMap.isNotEmpty()) {
+                    put("textMap", JSONObject().apply {
+                        element.textMap.forEach { (language, text) -> put(language, text) }
+                    })
+                }
                 if (element.line != 0) {
                     put("line", element.line)
                 }
@@ -472,7 +521,67 @@ object FrameTemplateParser {
                     put("line", element.line)
                 }
             }
+        }.apply {
+            element.placement?.let { put("placement", serializePlacement(it)) }
         }
+    }
+
+    private fun serializePlacement(placement: FramePlacement): JSONObject = JSONObject().apply {
+        put("reference", placement.reference.name)
+        put("x", placement.x)
+        put("y", placement.y)
+        put("anchorX", placement.anchorX)
+        put("anchorY", placement.anchorY)
+        put("widthFraction", placement.widthFraction)
+        put("rotation", placement.rotation)
+        put("opacity", placement.opacity)
+    }
+
+    private fun parsePlacement(obj: JSONObject): FramePlacement? {
+        if (!obj.has("placement") || obj.isNull("placement")) return null
+        val placement = obj.getJSONObject("placement")
+        return FramePlacement(
+            reference = FrameReference.valueOf(placement.optString("reference", "PHOTO")),
+            x = placement.optDouble("x", 0.5).toFloat(),
+            y = placement.optDouble("y", 0.5).toFloat(),
+            anchorX = placement.optDouble("anchorX", 0.5).toFloat(),
+            anchorY = placement.optDouble("anchorY", 0.5).toFloat(),
+            widthFraction = placement.optDouble("widthFraction", 0.8).toFloat(),
+            rotation = placement.optDouble("rotation", 0.0).toFloat(),
+            opacity = placement.optDouble("opacity", 1.0).toFloat(),
+        )
+    }
+
+    private fun serializeTextStyle(style: FrameTextStyle): JSONObject = JSONObject().apply {
+        put("italic", style.italic)
+        put("letterSpacingEm", style.letterSpacingEm)
+        put("lineSpacingMultiplier", style.lineSpacingMultiplier)
+        put("strokeWidth", style.strokeWidthPx)
+        put("strokeColor", colorToHex(style.strokeColor))
+        put("shadowRadius", style.shadowRadiusPx)
+        put("shadowOffsetX", style.shadowOffsetXPx)
+        put("shadowOffsetY", style.shadowOffsetYPx)
+        put("shadowColor", colorToHex(style.shadowColor))
+        style.gradientEndColor?.let { put("gradientEndColor", colorToHex(it)) }
+    }
+
+    private fun parseTextStyle(obj: JSONObject): FrameTextStyle {
+        if (!obj.has("style") || obj.isNull("style")) return FrameTextStyle()
+        val style = obj.getJSONObject("style")
+        return FrameTextStyle(
+            italic = style.optBoolean("italic", false),
+            letterSpacingEm = style.optDouble("letterSpacingEm", 0.0).toFloat(),
+            lineSpacingMultiplier = style.optDouble("lineSpacingMultiplier", 1.0).toFloat(),
+            strokeWidthPx = style.optDouble("strokeWidth", 0.0).toFloat(),
+            strokeColor = parseColor(style.optString("strokeColor", "#000000")),
+            shadowRadiusPx = style.optDouble("shadowRadius", 0.0).toFloat(),
+            shadowOffsetXPx = style.optDouble("shadowOffsetX", 0.0).toFloat(),
+            shadowOffsetYPx = style.optDouble("shadowOffsetY", 0.0).toFloat(),
+            shadowColor = parseColor(style.optString("shadowColor", "#99000000")),
+            gradientEndColor = if (style.has("gradientEndColor") && !style.isNull("gradientEndColor")) {
+                parseColor(style.getString("gradientEndColor"))
+            } else null,
+        )
     }
     
     /**
@@ -486,11 +595,16 @@ object FrameTemplateParser {
             color = parseColor(obj.optString("color", "#333333")),
             fontWeight = FontWeight.valueOf(obj.optString("fontWeight", "NORMAL")),
             fontFamily = obj.optString("fontFamily").takeIf { it.isNotEmpty() },
-            overrideText = obj.optString("overrideText").takeIf { it.isNotEmpty() },
+            overrideText = if (obj.has("overrideText") && !obj.isNull("overrideText")) {
+                obj.getString("overrideText")
+            } else null,
             format = obj.optString("format").takeIf { it.isNotEmpty() },
             prefix = obj.optString("prefix").takeIf { it.isNotEmpty() },
             suffix = obj.optString("suffix").takeIf { it.isNotEmpty() },
-            line = obj.optInt("line", 0)
+            line = obj.optInt("line", 0),
+            placement = parsePlacement(obj),
+            style = parseTextStyle(obj),
+            textMap = parseNameMap(obj.opt("textMap")),
         )
     }
     
@@ -507,7 +621,8 @@ object FrameTemplateParser {
             maxWidthPx = obj.optDouble("maxWidth", 0.0).toFloat(),
             light = obj.optBoolean("light", false),
             marginPx = obj.optDouble("margin", 24.0).toFloat(),
-            line = obj.optInt("line", 0)
+            line = obj.optInt("line", 0),
+            placement = parsePlacement(obj),
         )
     }
     
@@ -523,7 +638,8 @@ object FrameTemplateParser {
             thicknessPx = obj.optDouble("thickness", 3.0).toFloat(),
             color = parseColor(obj.optString("color", "#CCCCCC")),
             marginPx = obj.optDouble("margin", 24.0).toFloat(),
-            line = obj.optInt("line", 0)
+            line = obj.optInt("line", 0),
+            placement = parsePlacement(obj),
         )
     }
     

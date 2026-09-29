@@ -232,6 +232,7 @@ data class FrameLayoutDraft(
 sealed class FrameElementDraft(
     open val draftId: String = UUID.randomUUID().toString(),
     open val line: Int,
+    open val placement: FramePlacement? = null,
 ) {
     abstract fun toFrameElement(): FrameElement
 
@@ -247,8 +248,11 @@ sealed class FrameElementDraft(
         val format: String? = null,
         val prefix: String? = null,
         val suffix: String? = null,
-        override val line: Int = 0
-    ) : FrameElementDraft(draftId, line) {
+        override val line: Int = 0,
+        override val placement: FramePlacement? = null,
+        val style: FrameTextStyle = FrameTextStyle(),
+        val textMap: Map<String, String> = emptyMap(),
+    ) : FrameElementDraft(draftId, line, placement) {
         override fun toFrameElement(): FrameElement = FrameElement.Text(
             textType = textType,
             alignment = alignment,
@@ -260,7 +264,10 @@ sealed class FrameElementDraft(
             format = format,
             prefix = prefix,
             suffix = suffix,
-            line = line
+            line = line,
+            placement = placement,
+            style = style,
+            textMap = textMap,
         )
     }
 
@@ -274,8 +281,9 @@ sealed class FrameElementDraft(
         val legacyMaxWidthPx: Float = 0f,
         val light: Boolean = false,
         val marginPx: Float = 24.0f,
-        override val line: Int = 0
-    ) : FrameElementDraft(draftId, line) {
+        override val line: Int = 0,
+        override val placement: FramePlacement? = null,
+    ) : FrameElementDraft(draftId, line, placement) {
         override fun toFrameElement(): FrameElement = FrameElement.Logo(
             logoType = logoType,
             overrideSource = overrideSource,
@@ -285,7 +293,8 @@ sealed class FrameElementDraft(
             maxWidthPx = legacyMaxWidthPx,
             light = light,
             marginPx = marginPx,
-            line = line
+            line = line,
+            placement = placement,
         )
     }
 
@@ -297,8 +306,9 @@ sealed class FrameElementDraft(
         val thicknessPx: Float = 3.0f,
         val color: Int = Color.LTGRAY,
         val marginPx: Float = 24.0f,
-        override val line: Int = 0
-    ) : FrameElementDraft(draftId, line) {
+        override val line: Int = 0,
+        override val placement: FramePlacement? = null,
+    ) : FrameElementDraft(draftId, line, placement) {
         override fun toFrameElement(): FrameElement = FrameElement.Divider(
             orientation = orientation,
             alignment = alignment,
@@ -306,7 +316,8 @@ sealed class FrameElementDraft(
             thicknessPx = thicknessPx,
             color = color,
             marginPx = marginPx,
-            line = line
+            line = line,
+            placement = placement,
         )
     }
 
@@ -335,7 +346,10 @@ sealed class FrameElementDraft(
                     format = element.format,
                     prefix = element.prefix,
                     suffix = element.suffix,
-                    line = element.line
+                    line = element.line,
+                    placement = element.placement,
+                    style = element.style,
+                    textMap = element.textMap,
                 )
 
                 is FrameElement.Logo -> Logo(
@@ -347,7 +361,8 @@ sealed class FrameElementDraft(
                     legacyMaxWidthPx = element.maxWidthPx,
                     light = element.light,
                     marginPx = element.marginPx,
-                    line = element.line
+                    line = element.line,
+                    placement = element.placement,
                 )
 
                 is FrameElement.Divider -> Divider(
@@ -357,7 +372,8 @@ sealed class FrameElementDraft(
                     thicknessPx = element.thicknessPx,
                     color = element.color,
                     marginPx = element.marginPx,
-                    line = element.line
+                    line = element.line,
+                    placement = element.placement,
                 )
 
                 is FrameElement.Spacer -> Spacer(

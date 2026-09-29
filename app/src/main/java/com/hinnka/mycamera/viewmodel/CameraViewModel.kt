@@ -36,6 +36,7 @@ import com.hinnka.mycamera.data.VolumeKeyAction
 import com.hinnka.mycamera.frame.FrameEditorDraft
 import com.hinnka.mycamera.frame.FrameInfo
 import com.hinnka.mycamera.frame.FramePreviewFactory
+import com.hinnka.mycamera.frame.FramePreviewSelection
 import com.hinnka.mycamera.gallery.GalleryManager
 import com.hinnka.mycamera.gallery.MediaMetadata
 import com.hinnka.mycamera.gallery.PhotoSavePath
@@ -4829,12 +4830,23 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
     fun readFrameEditorImageDesignSize(path: String) =
         contentRepository.frameRenderer.readImageFrameDesignSize(path)
 
-    suspend fun renderFrameEditorPreview(draft: FrameEditorDraft): Bitmap =
+    suspend fun renderFrameEditorPreview(draft: FrameEditorDraft, selectionColor: Int? = null): Bitmap =
         withContext(Dispatchers.Default) {
             val source = FramePreviewFactory.createPreviewBitmap(draft.layout.designSize)
             val template = draft.toTemplate(draft.editableFrameId ?: draft.sourceFrameId ?: "preview_frame")
             val metadata = FramePreviewFactory.createPreviewMetadata(source.width, source.height)
-            contentRepository.frameRenderer.render(source, template, metadata)
+            val selectedId = draft.effectiveSelectedElementId
+            val selectedElement = template.elements.getOrNull(draft.elements.indexOfFirst { it.draftId == selectedId })
+                ?: template.elementsTop?.getOrNull(draft.elementsTop.orEmpty().indexOfFirst { it.draftId == selectedId })
+            val selection = if (selectionColor != null && selectedElement != null) {
+                FramePreviewSelection(selectedElement, selectionColor)
+            } else null
+            var rendered: Bitmap? = null
+            try {
+                contentRepository.frameRenderer.render(source, template, metadata, selection).also { rendered = it }
+            } finally {
+                if (rendered !== source) source.recycle()
+            }
         }
 
     /**

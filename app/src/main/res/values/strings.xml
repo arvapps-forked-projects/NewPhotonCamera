@@ -1329,4 +1329,39 @@
     <string name="category_empty_title">No filters in this category</string>
     <string name="category_empty_message">Import filters here, or assign existing filters to this category using Edit Category. Empty categories stay until you delete them.</string>
     <string name="category_name_unavailable">This name is already used or reserved. Choose another name.</string>
+    <string name="frame_editor_free_layer">Free layer</string>
+    <string name="frame_editor_layer_order_hint">Drag to reorder. Free layers overlay the photo and frame; layers lower in this list appear on top.</string>
+    <string name="frame_editor_placement_hint">Position is measured from the upper-left corner of the reference area. The anchor selects the point on the layer placed at that position. Photo layers are clipped to the photo, including rounded corners; canvas layers can extend across the frame.</string>
+    <string name="frame_editor_rule_free_layers">Free layers can use the photo or the whole canvas as their reference area, independently of the frame layout. They draw above the photo and row content, in list order, with later layers on top. When both top and bottom areas are enabled, free layers from the top list appear above those from the bottom list.</string>
+    <string name="frame_editor_reference">Reference area</string>
+    <string name="frame_editor_reference_photo">Photo</string>
+    <string name="frame_editor_reference_canvas">Whole canvas (including frame)</string>
+    <string name="frame_editor_position_x" formatted="false">Horizontal position (%)</string>
+    <string name="frame_editor_position_y" formatted="false">Vertical position (%)</string>
+    <string name="frame_editor_anchor_x">Horizontal anchor</string>
+    <string name="frame_editor_anchor_y">Vertical anchor</string>
+    <string name="frame_editor_anchor_left">Left edge</string>
+    <string name="frame_editor_anchor_center">Center</string>
+    <string name="frame_editor_anchor_right">Right edge</string>
+    <string name="frame_editor_anchor_top">Top edge</string>
+    <string name="frame_editor_anchor_bottom">Bottom edge</string>
+    <string name="frame_editor_anchor_custom">Custom (%1$.1f%%)</string>
+    <string name="frame_editor_text_box_width" formatted="false">Text box width (% of reference area)</string>
+    <string name="frame_editor_rotation">Rotation (°)</string>
+    <string name="frame_editor_opacity" formatted="false">Opacity (%)</string>
+    <string name="frame_editor_text_italic">Italic</string>
+    <string name="frame_editor_text_letter_spacing">Letter spacing (em, −0.1 to 1)</string>
+    <string name="frame_editor_text_line_spacing">Line spacing multiplier (0.5 to 3)</string>
+    <string name="frame_editor_text_stroke">Text outline</string>
+    <string name="frame_editor_text_stroke_width">Outline width</string>
+    <string name="frame_editor_text_stroke_color">Outline color</string>
+    <string name="frame_editor_text_shadow">Text shadow</string>
+    <string name="frame_editor_text_shadow_radius">Shadow blur radius</string>
+    <string name="frame_editor_text_shadow_x">Shadow horizontal offset</string>
+    <string name="frame_editor_text_shadow_y">Shadow vertical offset</string>
+    <string name="frame_editor_text_shadow_color">Shadow color</string>
+    <string name="frame_editor_text_gradient">Gradient fill</string>
+    <string name="frame_editor_text_gradient_end">Gradient end color</string>
+    <string name="frame_editor_text_gradient_hint">The fill blends vertically from the text color to the gradient end color.</string>
+    <string name="frame_editor_summary_free_layer">Free layer · %1$s · X %2$.1f%% · Y %3$.1f%%</string>
 </resources>

@@ -77,8 +77,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -94,12 +96,16 @@ import com.hinnka.mycamera.frame.FrameEditorDraft
 import com.hinnka.mycamera.frame.FrameBackgroundType
 import com.hinnka.mycamera.frame.FrameElementDraft
 import com.hinnka.mycamera.frame.FramePosition
+import com.hinnka.mycamera.frame.FramePlacement
+import com.hinnka.mycamera.frame.FrameReference
+import com.hinnka.mycamera.frame.FrameTextStyle
 import com.hinnka.mycamera.frame.LogoType
 import com.hinnka.mycamera.frame.TextType
 import com.hinnka.mycamera.ui.components.CustomSlider
 import com.hinnka.mycamera.ui.theme.AccentColor
 import com.hinnka.mycamera.viewmodel.CameraViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -209,16 +215,22 @@ fun FrameEditorScreen(
         draft = hydratedDraft
     }
 
-    LaunchedEffect(draft) {
+    val selectionColor = if (selectedTab == 1) AccentColor.toArgb() else null
+    LaunchedEffect(draft, selectionColor) {
         isRenderingPreview = true
         delay(150)
-        previewBitmap = runCatching {
-            viewModel.renderFrameEditorPreview(draft)
-        }.getOrNull()
+        previewBitmap = try {
+            viewModel.renderFrameEditorPreview(draft, selectionColor)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
         isRenderingPreview = false
     }
 
-    val hasChanges = draft != initialDraft
+    // Selection is editor state, not a change to the saved template.
+    val hasChanges = draft.copy(selectedElementId = null) != initialDraft.copy(selectedElementId = null)
     val hasMissingLogoFile = if (draft.layout.position == FramePosition.IMAGE) false else {
         val visibleElements = draft.elements +
             (if (draft.layout.position == FramePosition.BOTH) draft.elementsTop.orEmpty() else emptyList())
@@ -902,6 +914,11 @@ private fun FrameElementsTab(
 
         item {
             SectionCard(title = stringResource(R.string.frame_editor_section_elements)) {
+                Text(
+                    text = stringResource(R.string.frame_editor_layer_order_hint),
+                    color = Color.White.copy(alpha = 0.65f),
+                    fontSize = 12.sp
+                )
                 Box {
                     OutlinedButton(
                         onClick = { onShowAddMenuChange(true) },
@@ -954,7 +971,6 @@ private fun FrameElementsTab(
                     dragging = isDragging,
                     onSelect = {
                         onDraftChange(draft.withSelectedElement(element.draftId))
-                        editingElementId = element.draftId
                     },
                     onEdit = {
                         onDraftChange(draft.withSelectedElement(element.draftId))
@@ -1068,6 +1084,7 @@ private fun FrameRulesTab(modifier: Modifier = Modifier) {
         item {
             SectionCard(title = stringResource(R.string.frame_editor_rules_title_render)) {
                 RuleLine(stringResource(R.string.frame_editor_rule_line_global))
+                RuleLine(stringResource(R.string.frame_editor_rule_free_layers))
                 RuleLine(stringResource(R.string.frame_editor_rule_vertical_divider))
                 RuleLine(stringResource(R.string.frame_editor_rule_image_mode))
             }
@@ -1176,6 +1193,20 @@ private fun ElementEditor(
     onImportFont: (String) -> Unit,
     onImportLogo: (String) -> Unit
 ) {
+    if (element !is FrameElementDraft.Spacer) {
+        PlacementEditor(
+            placement = element.placement,
+            isText = element is FrameElementDraft.Text,
+            onPlacementChange = { placement ->
+                onElementChange(when (element) {
+                    is FrameElementDraft.Text -> element.copy(placement = placement)
+                    is FrameElementDraft.Logo -> element.copy(placement = placement)
+                    is FrameElementDraft.Divider -> element.copy(placement = placement)
+                    is FrameElementDraft.Spacer -> element
+                })
+            }
+        )
+    }
     when (element) {
         is FrameElementDraft.Text -> {
             val isCustomText = element.textType == TextType.CUSTOM
@@ -1197,12 +1228,14 @@ private fun ElementEditor(
                 optionLabel = { alignmentLabel(it) },
                 onSelected = { onElementChange(element.copy(alignment = it)) }
             )
-            IntField(
-                label = stringResource(R.string.frame_editor_line),
-                value = element.line,
-                allowNegative = true,
-                onValueChange = { onElementChange(element.copy(line = it)) }
-            )
+            if (element.placement == null) {
+                IntField(
+                    label = stringResource(R.string.frame_editor_line),
+                    value = element.line,
+                    allowNegative = true,
+                    onValueChange = { onElementChange(element.copy(line = it)) }
+                )
+            }
             NumberField(
                 label = stringResource(R.string.frame_editor_text_size),
                 value = element.fontSizePx,
@@ -1212,6 +1245,10 @@ private fun ElementEditor(
                 label = stringResource(R.string.frame_editor_text_color),
                 value = element.color,
                 onValueChange = { onElementChange(element.copy(color = it)) }
+            )
+            TextStyleEditor(
+                style = element.style,
+                onStyleChange = { onElementChange(element.copy(style = it)) }
             )
             DropdownSelectionField(
                 label = stringResource(R.string.frame_editor_font_weight),
@@ -1249,15 +1286,19 @@ private fun ElementEditor(
                 }
             }
             if (isCustomText) {
+                val language = LocalConfiguration.current.locales[0].language
                 TextFieldSection(
                     label = stringResource(R.string.frame_editor_text_custom_value),
-                    value = element.overrideText.orEmpty(),
-                    onValueChange = { onElementChange(element.copy(overrideText = it.ifBlank { null })) }
+                    value = element.overrideText ?: element.textMap[language]
+                        ?: element.textMap["en"] ?: element.format.orEmpty(),
+                    singleLine = false,
+                    onValueChange = { onElementChange(element.copy(overrideText = it)) }
                 )
             } else {
                 TextFieldSection(
                     label = stringResource(R.string.frame_editor_text_override),
                     value = element.overrideText.orEmpty(),
+                    singleLine = false,
                     onValueChange = { onElementChange(element.copy(overrideText = it.ifBlank { null })) }
                 )
             }
@@ -1303,13 +1344,15 @@ private fun ElementEditor(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.custom_import))
             }
-            DropdownSelectionField(
-                label = stringResource(R.string.frame_editor_alignment),
-                currentLabel = alignmentLabel(element.alignment),
-                options = ElementAlignment.entries,
-                optionLabel = { alignmentLabel(it) },
-                onSelected = { onElementChange(element.copy(alignment = it)) }
-            )
+            if (element.placement == null) {
+                DropdownSelectionField(
+                    label = stringResource(R.string.frame_editor_alignment),
+                    currentLabel = alignmentLabel(element.alignment),
+                    options = ElementAlignment.entries,
+                    optionLabel = { alignmentLabel(it) },
+                    onSelected = { onElementChange(element.copy(alignment = it)) }
+                )
+            }
             val customLogoSource = element.overrideSource?.takeIf {
                 it.startsWith("/") || it.startsWith("content://")
             }
@@ -1325,12 +1368,14 @@ private fun ElementEditor(
                     Text(stringResource(R.string.default_text))
                 }
             }
-            IntField(
-                label = stringResource(R.string.frame_editor_line),
-                value = element.line,
-                allowNegative = true,
-                onValueChange = { onElementChange(element.copy(line = it)) }
-            )
+            if (element.placement == null) {
+                IntField(
+                    label = stringResource(R.string.frame_editor_line),
+                    value = element.line,
+                    allowNegative = true,
+                    onValueChange = { onElementChange(element.copy(line = it)) }
+                )
+            }
             NumberField(
                 label = stringResource(
                     if (element.widthPx == null) R.string.frame_editor_logo_legacy_height
@@ -1339,11 +1384,13 @@ private fun ElementEditor(
                 value = element.widthPx ?: element.legacyHeightPx,
                 onValueChange = { onElementChange(element.copy(widthPx = it.coerceAtLeast(0f))) }
             )
-            NumberField(
-                label = stringResource(R.string.frame_editor_margin),
-                value = element.marginPx,
-                onValueChange = { onElementChange(element.copy(marginPx = it.coerceAtLeast(0f))) }
-            )
+            if (element.placement == null) {
+                NumberField(
+                    label = stringResource(R.string.frame_editor_margin),
+                    value = element.marginPx,
+                    onValueChange = { onElementChange(element.copy(marginPx = it.coerceAtLeast(0f))) }
+                )
+            }
             SwitchRow(
                 label = stringResource(R.string.frame_editor_logo_light),
                 checked = element.light,
@@ -1359,19 +1406,21 @@ private fun ElementEditor(
                 optionLabel = { dividerOrientationLabel(it) },
                 onSelected = { onElementChange(element.copy(orientation = it)) }
             )
-            DropdownSelectionField(
-                label = stringResource(R.string.frame_editor_alignment),
-                currentLabel = alignmentLabel(element.alignment),
-                options = ElementAlignment.entries,
-                optionLabel = { alignmentLabel(it) },
-                onSelected = { onElementChange(element.copy(alignment = it)) }
-            )
-            IntField(
-                label = stringResource(R.string.frame_editor_line),
-                value = element.line,
-                allowNegative = true,
-                onValueChange = { onElementChange(element.copy(line = it)) }
-            )
+            if (element.placement == null) {
+                DropdownSelectionField(
+                    label = stringResource(R.string.frame_editor_alignment),
+                    currentLabel = alignmentLabel(element.alignment),
+                    options = ElementAlignment.entries,
+                    optionLabel = { alignmentLabel(it) },
+                    onSelected = { onElementChange(element.copy(alignment = it)) }
+                )
+                IntField(
+                    label = stringResource(R.string.frame_editor_line),
+                    value = element.line,
+                    allowNegative = true,
+                    onValueChange = { onElementChange(element.copy(line = it)) }
+                )
+            }
             NumberField(
                 label = stringResource(R.string.frame_editor_divider_length),
                 value = element.lengthPx,
@@ -1387,11 +1436,13 @@ private fun ElementEditor(
                 value = element.color,
                 onValueChange = { onElementChange(element.copy(color = it)) }
             )
-            NumberField(
-                label = stringResource(R.string.frame_editor_margin),
-                value = element.marginPx,
-                onValueChange = { onElementChange(element.copy(marginPx = it.coerceAtLeast(0f))) }
-            )
+            if (element.placement == null) {
+                NumberField(
+                    label = stringResource(R.string.frame_editor_margin),
+                    value = element.marginPx,
+                    onValueChange = { onElementChange(element.copy(marginPx = it.coerceAtLeast(0f))) }
+                )
+            }
         }
 
         is FrameElementDraft.Spacer -> {
@@ -1408,6 +1459,195 @@ private fun ElementEditor(
             )
         }
     }
+}
+
+@Composable
+private fun PlacementEditor(
+    placement: FramePlacement?,
+    isText: Boolean,
+    onPlacementChange: (FramePlacement?) -> Unit
+) {
+    SwitchRow(
+        label = stringResource(R.string.frame_editor_free_layer),
+        checked = placement != null,
+        onCheckedChange = { onPlacementChange(if (it) FramePlacement() else null) }
+    )
+    if (placement == null) return
+
+    Text(
+        text = stringResource(R.string.frame_editor_placement_hint),
+        color = Color.White.copy(alpha = 0.65f),
+        fontSize = 12.sp
+    )
+    DropdownSelectionField(
+        label = stringResource(R.string.frame_editor_reference),
+        currentLabel = referenceLabel(placement.reference),
+        options = FrameReference.entries,
+        optionLabel = { referenceLabel(it) },
+        onSelected = { onPlacementChange(placement.copy(reference = it)) }
+    )
+    NumberField(
+        label = stringResource(R.string.frame_editor_position_x),
+        value = placement.x * 100f,
+        minimum = 0f,
+        maximum = 100f,
+        onValueChange = { onPlacementChange(placement.copy(x = it / 100f)) }
+    )
+    NumberField(
+        label = stringResource(R.string.frame_editor_position_y),
+        value = placement.y * 100f,
+        minimum = 0f,
+        maximum = 100f,
+        onValueChange = { onPlacementChange(placement.copy(y = it / 100f)) }
+    )
+    val horizontalAnchors = listOf(
+        0f to stringResource(R.string.frame_editor_anchor_left),
+        0.5f to stringResource(R.string.frame_editor_anchor_center),
+        1f to stringResource(R.string.frame_editor_anchor_right)
+    )
+    val verticalAnchors = listOf(
+        0f to stringResource(R.string.frame_editor_anchor_top),
+        0.5f to stringResource(R.string.frame_editor_anchor_center),
+        1f to stringResource(R.string.frame_editor_anchor_bottom)
+    )
+    DropdownSelectionField(
+        label = stringResource(R.string.frame_editor_anchor_x),
+        currentLabel = horizontalAnchors.firstOrNull { it.first == placement.anchorX }?.second
+            ?: stringResource(R.string.frame_editor_anchor_custom, placement.anchorX * 100f),
+        options = horizontalAnchors,
+        optionLabel = { it.second },
+        onSelected = { onPlacementChange(placement.copy(anchorX = it.first)) }
+    )
+    DropdownSelectionField(
+        label = stringResource(R.string.frame_editor_anchor_y),
+        currentLabel = verticalAnchors.firstOrNull { it.first == placement.anchorY }?.second
+            ?: stringResource(R.string.frame_editor_anchor_custom, placement.anchorY * 100f),
+        options = verticalAnchors,
+        optionLabel = { it.second },
+        onSelected = { onPlacementChange(placement.copy(anchorY = it.first)) }
+    )
+    if (isText) {
+        NumberField(
+            label = stringResource(R.string.frame_editor_text_box_width),
+            value = placement.widthFraction * 100f,
+            minimum = 1f,
+            maximum = 100f,
+            onValueChange = { onPlacementChange(placement.copy(widthFraction = it / 100f)) }
+        )
+    }
+    NumberField(
+        label = stringResource(R.string.frame_editor_rotation),
+        value = placement.rotation,
+        allowNegative = true,
+        minimum = -180f,
+        maximum = 180f,
+        onValueChange = { onPlacementChange(placement.copy(rotation = it)) }
+    )
+    NumberField(
+        label = stringResource(R.string.frame_editor_opacity),
+        value = placement.opacity * 100f,
+        minimum = 0f,
+        maximum = 100f,
+        onValueChange = { onPlacementChange(placement.copy(opacity = it / 100f)) }
+    )
+}
+
+@Composable
+private fun TextStyleEditor(
+    style: FrameTextStyle,
+    onStyleChange: (FrameTextStyle) -> Unit
+) {
+    SwitchRow(
+        label = stringResource(R.string.frame_editor_text_italic),
+        checked = style.italic,
+        onCheckedChange = { onStyleChange(style.copy(italic = it)) }
+    )
+    NumberField(
+        label = stringResource(R.string.frame_editor_text_letter_spacing),
+        value = style.letterSpacingEm,
+        allowNegative = true,
+        minimum = -0.1f,
+        maximum = 1f,
+        onValueChange = { onStyleChange(style.copy(letterSpacingEm = it)) }
+    )
+    NumberField(
+        label = stringResource(R.string.frame_editor_text_line_spacing),
+        value = style.lineSpacingMultiplier,
+        minimum = 0.5f,
+        maximum = 3f,
+        onValueChange = { onStyleChange(style.copy(lineSpacingMultiplier = it)) }
+    )
+    SwitchRow(
+        label = stringResource(R.string.frame_editor_text_stroke),
+        checked = style.strokeWidthPx > 0f,
+        onCheckedChange = { onStyleChange(style.copy(strokeWidthPx = if (it) 1f else 0f)) }
+    )
+    if (style.strokeWidthPx > 0f) {
+        NumberField(
+            label = stringResource(R.string.frame_editor_text_stroke_width),
+            value = style.strokeWidthPx,
+            onValueChange = { onStyleChange(style.copy(strokeWidthPx = it)) }
+        )
+        ColorField(
+            label = stringResource(R.string.frame_editor_text_stroke_color),
+            value = style.strokeColor,
+            onValueChange = { onStyleChange(style.copy(strokeColor = it)) }
+        )
+    }
+    SwitchRow(
+        label = stringResource(R.string.frame_editor_text_shadow),
+        checked = style.shadowRadiusPx > 0f,
+        onCheckedChange = { onStyleChange(style.copy(shadowRadiusPx = if (it) 3f else 0f)) }
+    )
+    if (style.shadowRadiusPx > 0f) {
+        NumberField(
+            label = stringResource(R.string.frame_editor_text_shadow_radius),
+            value = style.shadowRadiusPx,
+            onValueChange = { onStyleChange(style.copy(shadowRadiusPx = it)) }
+        )
+        NumberField(
+            label = stringResource(R.string.frame_editor_text_shadow_x),
+            value = style.shadowOffsetXPx,
+            allowNegative = true,
+            onValueChange = { onStyleChange(style.copy(shadowOffsetXPx = it)) }
+        )
+        NumberField(
+            label = stringResource(R.string.frame_editor_text_shadow_y),
+            value = style.shadowOffsetYPx,
+            allowNegative = true,
+            onValueChange = { onStyleChange(style.copy(shadowOffsetYPx = it)) }
+        )
+        ColorField(
+            label = stringResource(R.string.frame_editor_text_shadow_color),
+            value = style.shadowColor,
+            onValueChange = { onStyleChange(style.copy(shadowColor = it)) }
+        )
+    }
+    SwitchRow(
+        label = stringResource(R.string.frame_editor_text_gradient),
+        checked = style.gradientEndColor != null,
+        onCheckedChange = {
+            onStyleChange(style.copy(gradientEndColor = if (it) AndroidColor.WHITE else null))
+        }
+    )
+    style.gradientEndColor?.let { color ->
+        ColorField(
+            label = stringResource(R.string.frame_editor_text_gradient_end),
+            value = color,
+            onValueChange = { onStyleChange(style.copy(gradientEndColor = it)) }
+        )
+        Text(
+            text = stringResource(R.string.frame_editor_text_gradient_hint),
+            color = Color.White.copy(alpha = 0.65f),
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun referenceLabel(reference: FrameReference): String = when (reference) {
+    FrameReference.PHOTO -> stringResource(R.string.frame_editor_reference_photo)
+    FrameReference.CANVAS -> stringResource(R.string.frame_editor_reference_canvas)
 }
 
 @Composable
@@ -1442,13 +1682,15 @@ private fun SectionCard(
 private fun TextFieldSection(
     label: String,
     value: String,
+    singleLine: Boolean = true,
     onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        singleLine = true,
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else 3,
         modifier = Modifier.fillMaxWidth()
     )
 }
@@ -2219,28 +2461,38 @@ private fun elementTypeLabel(element: FrameElementDraft): String = when (element
 }
 
 @Composable
-private fun elementSummary(element: FrameElementDraft): String = when (element) {
-    is FrameElementDraft.Text -> stringResource(
-        R.string.frame_editor_summary_text,
-        textTypeLabel(element.textType),
-        alignmentLabel(element.alignment),
-        element.line
-    )
-    is FrameElementDraft.Logo -> stringResource(
-        R.string.frame_editor_summary_logo,
-        logoTypeLabel(element.logoType),
-        alignmentLabel(element.alignment),
-        element.widthPx ?: element.legacyHeightPx
-    )
-    is FrameElementDraft.Divider -> stringResource(
-        R.string.frame_editor_summary_divider,
-        dividerOrientationLabel(element.orientation),
-        alignmentLabel(element.alignment),
-        element.lengthPx
-    )
-    is FrameElementDraft.Spacer -> stringResource(
-        R.string.frame_editor_summary_spacer,
-        element.line,
-        element.widthPx
-    )
+private fun elementSummary(element: FrameElementDraft): String {
+    element.placement?.let { placement ->
+        return stringResource(
+            R.string.frame_editor_summary_free_layer,
+            referenceLabel(placement.reference),
+            placement.x * 100f,
+            placement.y * 100f
+        )
+    }
+    return when (element) {
+        is FrameElementDraft.Text -> stringResource(
+            R.string.frame_editor_summary_text,
+            textTypeLabel(element.textType),
+            alignmentLabel(element.alignment),
+            element.line
+        )
+        is FrameElementDraft.Logo -> stringResource(
+            R.string.frame_editor_summary_logo,
+            logoTypeLabel(element.logoType),
+            alignmentLabel(element.alignment),
+            element.widthPx ?: element.legacyHeightPx
+        )
+        is FrameElementDraft.Divider -> stringResource(
+            R.string.frame_editor_summary_divider,
+            dividerOrientationLabel(element.orientation),
+            alignmentLabel(element.alignment),
+            element.lengthPx
+        )
+        is FrameElementDraft.Spacer -> stringResource(
+            R.string.frame_editor_summary_spacer,
+            element.line,
+            element.widthPx
+        )
+    }
 }

@@ -818,6 +818,8 @@ class PhotoProcessor(
         val framedGainmapResult = frameGainmapResult(
             input = input,
             template = resolvedFrame.template,
+            metadata = resolvedFrame.metadata,
+            framedSdr = framedBitmap,
             gainmapResult = gainmapResult
         )
         HdrFrameOutput(framedBitmap, framedGainmapResult)
@@ -958,6 +960,8 @@ class PhotoProcessor(
     private fun frameGainmapResult(
         input: Bitmap,
         template: FrameTemplate,
+        metadata: MediaMetadata,
+        framedSdr: Bitmap,
         gainmapResult: GainmapResult?,
     ): GainmapResult? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE || gainmapResult == null) {
@@ -966,7 +970,7 @@ class PhotoProcessor(
 
         val sourceGainmap = gainmapResult.gainmap
         val sourceContents = sourceGainmap.getGainmapContents()
-        val framedContents = frameRenderer.renderGainmapContents(input, sourceGainmap, template)
+        val framedContents = frameRenderer.renderGainmapContents(input, sourceGainmap, template, metadata, framedSdr)
         if (framedContents === sourceContents) {
             return gainmapResult
         }

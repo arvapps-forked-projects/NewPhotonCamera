@@ -1305,4 +1305,39 @@
     <string name="category_empty_title">此分类暂无滤镜</string>
     <string name="category_empty_message">可导入滤镜，或通过“编辑分类”将已有滤镜移入。空分类会保留，直到你主动删除。</string>
     <string name="category_name_unavailable">该名称已被使用或属于系统分类，请换一个名称。</string>
+    <string name="frame_editor_free_layer">自由图层</string>
+    <string name="frame_editor_layer_order_hint">拖动可调整顺序。自由图层覆盖在照片和边框之上，列表中越靠后的图层越靠上。</string>
+    <string name="frame_editor_placement_hint">位置以参考区域左上角为起点，锚点决定图层上的哪个位置对应该坐标。照片图层会按照片边界和圆角裁剪；画布图层可跨越外框。</string>
+    <string name="frame_editor_rule_free_layers">自由图层可相对照片或整个画布定位，不受边框布局限制。它们绘制在照片和行式内容上方，按列表顺序叠放，越靠后越靠上。启用上下双区域时，顶部列表的自由图层绘制在底部列表的自由图层上方。</string>
+    <string name="frame_editor_reference">参考区域</string>
+    <string name="frame_editor_reference_photo">照片</string>
+    <string name="frame_editor_reference_canvas">整个画布（含边框）</string>
+    <string name="frame_editor_position_x" formatted="false">水平位置（%）</string>
+    <string name="frame_editor_position_y" formatted="false">垂直位置（%）</string>
+    <string name="frame_editor_anchor_x">水平锚点</string>
+    <string name="frame_editor_anchor_y">垂直锚点</string>
+    <string name="frame_editor_anchor_left">左侧</string>
+    <string name="frame_editor_anchor_center">居中</string>
+    <string name="frame_editor_anchor_right">右侧</string>
+    <string name="frame_editor_anchor_top">顶部</string>
+    <string name="frame_editor_anchor_bottom">底部</string>
+    <string name="frame_editor_anchor_custom">自定义（%1$.1f%%）</string>
+    <string name="frame_editor_text_box_width" formatted="false">文本框宽度（参考区域的百分比）</string>
+    <string name="frame_editor_rotation">旋转角度（°）</string>
+    <string name="frame_editor_opacity" formatted="false">不透明度（%）</string>
+    <string name="frame_editor_text_italic">斜体</string>
+    <string name="frame_editor_text_letter_spacing">字距（em，−0.1 至 1）</string>
+    <string name="frame_editor_text_line_spacing">行距倍数（0.5 至 3）</string>
+    <string name="frame_editor_text_stroke">文字描边</string>
+    <string name="frame_editor_text_stroke_width">描边宽度</string>
+    <string name="frame_editor_text_stroke_color">描边颜色</string>
+    <string name="frame_editor_text_shadow">文字阴影</string>
+    <string name="frame_editor_text_shadow_radius">阴影模糊半径</string>
+    <string name="frame_editor_text_shadow_x">阴影水平偏移</string>
+    <string name="frame_editor_text_shadow_y">阴影垂直偏移</string>
+    <string name="frame_editor_text_shadow_color">阴影颜色</string>
+    <string name="frame_editor_text_gradient">渐变填充</string>
+    <string name="frame_editor_text_gradient_end">渐变终点颜色</string>
+    <string name="frame_editor_text_gradient_hint">填充色从上到下，由文字颜色渐变到终点颜色。</string>
+    <string name="frame_editor_summary_free_layer">自由图层 · %1$s · 水平 %2$.1f%% · 垂直 %3$.1f%%</string>
 </resources>

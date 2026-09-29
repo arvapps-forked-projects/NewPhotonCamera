@@ -54,7 +54,7 @@ data class FrameTemplate(
     val elementsTop: List<FrameElement>? = null
 ) {
     companion object {
-        const val CURRENT_VERSION = 2
+        const val CURRENT_VERSION = 3
     }
 
     fun getName(locale: java.util.Locale = java.util.Locale.getDefault()): String {
@@ -117,12 +117,49 @@ enum class FramePosition {
     IMAGE     // 使用图片作为边框，照片填充透明区域
 }
 
+/** Reference rectangle for a freely placed layer. */
+enum class FrameReference {
+    PHOTO,
+    CANVAS
+}
+
+/**
+ * Normalized placement, independent of the frame's row layout.
+ * Layers are painted in elements list order, with later layers above earlier ones.
+ * x/y locate the anchor in the reference rectangle; anchorX/Y locate it within the element.
+ */
+data class FramePlacement(
+    val reference: FrameReference = FrameReference.PHOTO,
+    val x: Float = 0.5f,
+    val y: Float = 0.5f,
+    val anchorX: Float = 0.5f,
+    val anchorY: Float = 0.5f,
+    val widthFraction: Float = 0.8f,
+    val rotation: Float = 0f,
+    val opacity: Float = 1f,
+)
+
+/** Text effects use design pixels, like the element's font size. */
+data class FrameTextStyle(
+    val italic: Boolean = false,
+    val letterSpacingEm: Float = 0f,
+    val lineSpacingMultiplier: Float = 1f,
+    val strokeWidthPx: Float = 0f,
+    val strokeColor: Int = Color.BLACK,
+    val shadowRadiusPx: Float = 0f,
+    val shadowOffsetXPx: Float = 0f,
+    val shadowOffsetYPx: Float = 0f,
+    val shadowColor: Int = 0x99000000.toInt(),
+    val gradientEndColor: Int? = null,
+)
+
 /**
  * 边框元素基类
  */
 sealed class FrameElement(
     open val line: Int,
     open val sizePx: Float,
+    open val placement: FramePlacement? = null,
 ) {
     /**
      * 文本元素
@@ -138,8 +175,11 @@ sealed class FrameElement(
         val format: String? = null,
         val prefix: String? = null,
         val suffix: String? = null,
-        override val line: Int = 0
-    ) : FrameElement(line = line, sizePx = fontSizePx)
+        override val line: Int = 0,
+        override val placement: FramePlacement? = null,
+        val style: FrameTextStyle = FrameTextStyle(),
+        val textMap: Map<String, String> = emptyMap(),
+    ) : FrameElement(line = line, sizePx = fontSizePx, placement = placement)
     
     /**
      * Logo/图标元素
@@ -154,8 +194,9 @@ sealed class FrameElement(
         val maxWidthPx: Float = 0f,
         val light: Boolean = false,
         val marginPx: Float = 24.0f,
-        override val line: Int = 0
-    ) : FrameElement(line = line, sizePx = sizePx)
+        override val line: Int = 0,
+        override val placement: FramePlacement? = null,
+    ) : FrameElement(line = line, sizePx = sizePx, placement = placement)
     
     /**
      * 分隔线元素
@@ -167,8 +208,9 @@ sealed class FrameElement(
         val thicknessPx: Float = 3.0f,
         val color: Int = Color.LTGRAY,
         val marginPx: Float = 24.0f,
-        override val line: Int = 0
-    ) : FrameElement(line, sizePx = lengthPx)
+        override val line: Int = 0,
+        override val placement: FramePlacement? = null,
+    ) : FrameElement(line, sizePx = lengthPx, placement = placement)
     
     /**
      * 间距元素

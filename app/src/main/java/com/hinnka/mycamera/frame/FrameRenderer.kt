@@ -66,6 +66,7 @@ class FrameRenderer(
         originalBitmap: Bitmap,
         template: FrameTemplate,
         metadata: MediaMetadata,
+        previewSelection: FramePreviewSelection? = null,
     ): Bitmap {
 
 //        PLog.d(TAG, "render: $metadata")
@@ -195,7 +196,8 @@ class FrameRenderer(
                     top = photoHeight.toFloat(),
                     right = outputWidth - padding,
                     bottom = outputHeight.toFloat(),
-                    dimensions = dimensions
+                    dimensions = dimensions,
+                    previewSelection = previewSelection,
                 )
             }
 
@@ -206,7 +208,8 @@ class FrameRenderer(
                     top = 0f,
                     right = outputWidth - padding,
                     bottom = frameHeight.toFloat(),
-                    dimensions = dimensions
+                    dimensions = dimensions,
+                    previewSelection = previewSelection,
                 )
             }
 
@@ -218,7 +221,8 @@ class FrameRenderer(
                     top = 0f,
                     right = outputWidth - padding,
                     bottom = frameHeight.toFloat(),
-                    dimensions = dimensions
+                    dimensions = dimensions,
+                    previewSelection = previewSelection,
                 )
                 // 底部
                 drawFrameContent(
@@ -227,7 +231,8 @@ class FrameRenderer(
                     top = (photoHeight + frameHeight).toFloat(),
                     right = outputWidth - padding,
                     bottom = outputHeight.toFloat(),
-                    dimensions = dimensions
+                    dimensions = dimensions,
+                    previewSelection = previewSelection,
                 )
             }
 
@@ -271,7 +276,8 @@ class FrameRenderer(
                         clipPath(FrameGlassOverlay.outline(glassBounds))
                         drawFrameContent(
                             this, template.elements, metadata, layout,
-                            contentBounds.left, contentBounds.top, contentBounds.right, contentBounds.bottom, dimensions
+                            contentBounds.left, contentBounds.top, contentBounds.right, contentBounds.bottom,
+                            dimensions, previewSelection,
                         )
                     }
                 } else {
@@ -279,7 +285,8 @@ class FrameRenderer(
                         canvas, template.elements, metadata, layout,
                         left = padding, top = overlayTop + verticalPadding,
                         right = outputWidth - padding, bottom = outputHeight.toFloat() - verticalPadding,
-                        dimensions = dimensions
+                        dimensions = dimensions,
+                        previewSelection = previewSelection,
                     )
                 }
             }
@@ -293,12 +300,104 @@ class FrameRenderer(
                     top = infoTop,
                     right = outputWidth - padding,
                     bottom = outputHeight.toFloat(),
-                    dimensions = dimensions
+                    dimensions = dimensions,
+                    previewSelection = previewSelection,
                 )
             }
         }
 
+        drawPlacedElements(
+            canvas, template, metadata, dimensions,
+            RectF(photoLeft, photoTop, photoLeft + photoWidth, photoTop + photoHeight),
+            RectF(0f, 0f, outputWidth.toFloat(), outputHeight.toFloat()),
+            previewSelection,
+        )
+        previewSelection?.draw(canvas)
         return output
+    }
+
+    /** Free layers are independent of the frame's information rows and painted in list order. */
+    private fun placedElements(template: FrameTemplate): List<FrameElement> =
+        (template.elements + if (template.layout.position == FramePosition.BOTH) {
+            template.elementsTop.orEmpty()
+        } else emptyList()).filter { it.placement != null }
+
+    private fun drawPlacedElements(
+        canvas: Canvas,
+        template: FrameTemplate,
+        metadata: MediaMetadata,
+        dimensions: FrameDimensions,
+        photoRect: RectF,
+        canvasRect: RectF,
+        previewSelection: FramePreviewSelection? = null,
+    ) {
+        for (element in placedElements(template)) {
+            val placement = element.placement ?: continue
+            if (placement.opacity <= 0f && previewSelection?.matches(element) != true) continue
+            if (!isElementVisible(element, metadata)) continue
+            val reference = if (placement.reference == FrameReference.PHOTO) photoRect else canvasRect
+            val textLayout = if (element is FrameElement.Text) {
+                if (element.fontSizePx <= 0f) continue
+                FrameTextLayout(
+                    getTextContent(element, metadata) ?: continue, element,
+                    getTextTypeface(element, metadata), dimensions, reference.width() * placement.widthFraction,
+                )
+            } else null
+            // Row margins and spacing do not participate in free-layer geometry.
+            val width: Float
+            val height: Float
+            when (element) {
+                is FrameElement.Text -> {
+                    width = textLayout!!.width
+                    height = textLayout.height
+                }
+                is FrameElement.Logo -> {
+                    val size = measureLogoSize(element, metadata, dimensions)
+                    width = size.first.toFloat()
+                    height = size.second.toFloat()
+                }
+                is FrameElement.Divider -> {
+                    width = if (element.orientation == DividerOrientation.HORIZONTAL) {
+                        dividerLength(element, dimensions)
+                    } else dividerThickness(element, dimensions)
+                    height = measureElementHeight(element, metadata, dimensions)
+                }
+                is FrameElement.Spacer -> continue
+            }
+            if (width <= 0f || height <= 0f) continue
+            canvas.withSave {
+                // PHOTO layers stay inside the actual photo, including its rounded corners.
+                if (placement.reference == FrameReference.PHOTO) {
+                    val radius = dimensions.toPixels(template.layout.photoCornerRadiusPx)
+                    val clip = Path().apply {
+                        addRoundRect(photoRect, radius, radius, Path.Direction.CW)
+                    }
+                    clipPath(clip)
+                } else clipRect(canvasRect)
+                // Bound the layer by the output clip so shadows outside text bounds are preserved.
+                val alphaSave = if (placement.opacity < 1f) {
+                    saveLayerAlpha(canvasRect, (placement.opacity * 255).roundToInt())
+                } else null
+                try {
+                    translate(reference.left + reference.width() * placement.x, reference.top + reference.height() * placement.y)
+                    rotate(placement.rotation)
+                    translate(-width * placement.anchorX, -height * placement.anchorY)
+                    previewSelection?.record(this, element, RectF(0f, 0f, width, height))
+                    when (element) {
+                        is FrameElement.Text -> textLayout!!.draw(this, 0f, 0f)
+                        is FrameElement.Logo -> drawLogoElement(
+                            this, element.copy(marginPx = 0f), 0f, height / 2f, true, metadata, dimensions,
+                        )
+                        is FrameElement.Divider -> drawDividerElement(
+                            this, element.copy(marginPx = 0f), 0f, height / 2f, true, dimensions,
+                        )
+                        is FrameElement.Spacer -> Unit
+                    }
+                } finally {
+                    alphaSave?.let { restoreToCount(it) }
+                }
+            }
+        }
     }
 
     private fun drawPhotoBackground(
@@ -331,6 +430,8 @@ class FrameRenderer(
         originalBitmap: Bitmap,
         gainmap: Gainmap,
         template: FrameTemplate,
+        metadata: MediaMetadata,
+        framedSdr: Bitmap,
     ): Bitmap {
         val gainmapContents = gainmap.gainmapContents
         val neutralColor = neutralGainmapColor(gainmap)
@@ -352,7 +453,7 @@ class FrameRenderer(
         val replacedOverlay = photoBackground && layout.position == FramePosition.OVERLAY && frameHeight > 0
         val cornerRadius = dimensions.toPixels(layout.photoCornerRadiusPx.coerceAtLeast(0f))
         if (
-            !replacedOverlay && cornerRadius == 0f &&
+            placedElements(template).isEmpty() && !replacedOverlay && cornerRadius == 0f &&
             geometry.outputWidth == originalBitmap.width &&
             geometry.outputHeight == originalBitmap.height &&
             geometry.photoRect.left == 0f &&
@@ -398,7 +499,37 @@ class FrameRenderer(
                 canvas.drawRect(bounds, neutralPaint)
             }
         }
-        return output
+        return compositePlacedGainmap(output, gainmap, framedSdr, template, metadata, dimensions, geometry)
+    }
+
+    @RequiresApi(34)
+    private fun compositePlacedGainmap(
+        output: Bitmap,
+        gainmap: Gainmap,
+        framedSdr: Bitmap,
+        template: FrameTemplate,
+        metadata: MediaMetadata,
+        dimensions: FrameDimensions,
+        geometry: FrameGeometry,
+    ): Bitmap {
+        if (placedElements(template).isEmpty()) return output
+        // Use the same glyphs, transforms, clipping and alpha as the visible layers.
+        val coverage = createBitmap(output.width, output.height)
+        try {
+            val maskCanvas = Canvas(coverage)
+            maskCanvas.scale(
+                output.width.toFloat() / geometry.outputWidth,
+                output.height.toFloat() / geometry.outputHeight,
+            )
+            drawPlacedElements(
+                maskCanvas, template, metadata, dimensions, geometry.photoRect,
+                RectF(0f, 0f, geometry.outputWidth.toFloat(), geometry.outputHeight.toFloat()),
+            )
+            return FrameGainmapCompositor.composite(output, gainmap, coverage, framedSdr)
+        } finally {
+            coverage.recycle()
+            output.recycle()
+        }
     }
 
     private fun calculateFrameGeometry(
@@ -617,19 +748,20 @@ class FrameRenderer(
         top: Float,
         right: Float,
         bottom: Float,
-        dimensions: FrameDimensions
+        dimensions: FrameDimensions,
+        previewSelection: FramePreviewSelection? = null,
     ) {
         // 将元素按对齐方式分组并过滤不可见元素
         val startElements = filterVisibleGroup(
-            elements.filter { getAlignment(it) == ElementAlignment.START },
+            elements.filter { it.placement == null && getAlignment(it) == ElementAlignment.START },
             metadata
         )
         val centerElements = filterVisibleGroup(
-            elements.filter { getAlignment(it) == ElementAlignment.CENTER },
+            elements.filter { it.placement == null && getAlignment(it) == ElementAlignment.CENTER },
             metadata
         )
         val endElements =
-            filterVisibleGroup(elements.filter { getAlignment(it) == ElementAlignment.END }, metadata)
+            filterVisibleGroup(elements.filter { it.placement == null && getAlignment(it) == ElementAlignment.END }, metadata)
 
         val visibleElements = startElements + centerElements + endElements
 
@@ -664,6 +796,9 @@ class FrameRenderer(
             return currentY + linePixelHeights[lineIndex] / 2f
         }
 
+        fun getSelectionRowHeight(line: Int): Float =
+            linePixelHeights.getOrNull(allLines.indexOf(line))?.takeIf { it > 0f } ?: height
+
         /**
          * 绘制左对齐或右对齐的元素组
          */
@@ -675,7 +810,10 @@ class FrameRenderer(
                 val centerY = getLineCenterY(line)
 
                 val x = currentXPerLine.getOrDefault(line, initialX)
-                val width = drawElement(canvas, element, metadata, x, centerY, leftToRight, dimensions)
+                val width = drawElement(
+                    canvas, element, metadata, x, centerY, leftToRight, dimensions,
+                    previewSelection, getSelectionRowHeight(line),
+                )
 
                 val nextX = if (leftToRight) x + width else x - width
 
@@ -715,7 +853,10 @@ class FrameRenderer(
                 // 绘制该行的所有元素
                 var currentX = startX
                 for (element in lineElements) {
-                    currentX += drawElement(canvas, element, metadata, currentX, centerY, true, dimensions)
+                    currentX += drawElement(
+                        canvas, element, metadata, currentX, centerY, true, dimensions,
+                        previewSelection, getSelectionRowHeight(line),
+                    )
                 }
             }
         }
@@ -836,7 +977,9 @@ class FrameRenderer(
         metadata: MediaMetadata,
         dimensions: FrameDimensions,
     ): Float = when (element) {
-        is FrameElement.Text -> dimensions.toPixels(element.fontSizePx)
+        is FrameElement.Text -> if (usesTextLayout(element, metadata)) {
+            createTextLayout(element, metadata, dimensions).height
+        } else dimensions.toPixels(element.fontSizePx)
         is FrameElement.Logo -> measureLogoSize(element, metadata, dimensions).second.toFloat()
         is FrameElement.Divider -> if (element.orientation == DividerOrientation.VERTICAL) {
             dividerLength(element, dimensions)
@@ -854,6 +997,9 @@ class FrameRenderer(
         return when (element) {
             is FrameElement.Text -> {
                 val text = getTextContent(element, metadata) ?: return 0f
+                if (usesTextLayout(element, metadata)) {
+                    return createTextLayout(element, metadata, dimensions).width + dimensions.elementSpacing
+                }
                 textPaint.textSize = dimensions.toPixels(element.fontSizePx)
                 textPaint.typeface = getTextTypeface(element, metadata)
                 textPaint.measureText(text) + dimensions.elementSpacing
@@ -893,8 +1039,16 @@ class FrameRenderer(
         x: Float,
         centerY: Float,
         leftToRight: Boolean,
-        dimensions: FrameDimensions
+        dimensions: FrameDimensions,
+        previewSelection: FramePreviewSelection? = null,
+        selectionRowHeight: Float = 0f,
     ): Float {
+        if (previewSelection?.matches(element) == true) {
+            recordRowSelection(
+                canvas, element, metadata, x, centerY, leftToRight, dimensions,
+                previewSelection, selectionRowHeight,
+            )
+        }
         return when (element) {
             is FrameElement.Text -> drawTextElement(
                 canvas,
@@ -921,6 +1075,57 @@ class FrameRenderer(
         }
     }
 
+    private fun recordRowSelection(
+        canvas: Canvas,
+        element: FrameElement,
+        metadata: MediaMetadata,
+        x: Float,
+        centerY: Float,
+        leftToRight: Boolean,
+        dimensions: FrameDimensions,
+        selection: FramePreviewSelection,
+        rowHeight: Float,
+    ) {
+        val width: Float
+        val height: Float
+        val margin: Float
+        when (element) {
+            is FrameElement.Text -> {
+                margin = 0f
+                if (usesTextLayout(element, metadata)) {
+                    val layout = createTextLayout(element, metadata, dimensions)
+                    width = layout.width
+                    height = layout.height
+                } else {
+                    textPaint.textSize = dimensions.toPixels(element.fontSizePx)
+                    textPaint.typeface = getTextTypeface(element, metadata)
+                    width = textPaint.measureText(getTextContent(element, metadata).orEmpty())
+                    height = textPaint.descent() - textPaint.ascent()
+                }
+            }
+            is FrameElement.Logo -> {
+                val size = measureLogoSize(element, metadata, dimensions)
+                width = size.first.toFloat()
+                height = size.second.toFloat()
+                margin = dimensions.toPixels(element.marginPx)
+            }
+            is FrameElement.Divider -> {
+                margin = dimensions.toPixels(element.marginPx)
+                width = if (element.orientation == DividerOrientation.HORIZONTAL) {
+                    dividerLength(element, dimensions)
+                } else dividerThickness(element, dimensions)
+                height = measureElementHeight(element, metadata, dimensions)
+            }
+            is FrameElement.Spacer -> {
+                margin = 0f
+                width = dimensions.toPixels(element.widthPx)
+                height = rowHeight
+            }
+        }
+        val left = if (leftToRight) x + margin else x - margin - width
+        selection.record(canvas, element, RectF(left, centerY - height / 2f, left + width, centerY + height / 2f))
+    }
+
     /**
      * 绘制文本元素
      */
@@ -933,7 +1138,13 @@ class FrameRenderer(
         leftToRight: Boolean,
         dimensions: FrameDimensions
     ): Float {
-        val text = getTextContent(element, metadata) ?: return x
+        val text = getTextContent(element, metadata) ?: return 0f
+        if (element.fontSizePx <= 0f) return dimensions.elementSpacing
+        if (usesTextLayout(element, metadata)) {
+            val layout = createTextLayout(element, metadata, dimensions)
+            layout.draw(canvas, if (leftToRight) x else x - layout.width, centerY - layout.height / 2f)
+            return layout.width + dimensions.elementSpacing
+        }
 
         textPaint.color = element.color
         textPaint.textSize = dimensions.toPixels(element.fontSizePx)
@@ -949,6 +1160,18 @@ class FrameRenderer(
         val spacing = dimensions.elementSpacing
         return textWidth + spacing
     }
+
+    // Retain exact measurement/baselines of legacy single-line templates.
+    private fun usesTextLayout(element: FrameElement.Text, metadata: MediaMetadata): Boolean =
+        element.style != FrameTextStyle() || getTextContent(element, metadata)?.contains('\n') == true
+
+    private fun createTextLayout(
+        element: FrameElement.Text,
+        metadata: MediaMetadata,
+        dimensions: FrameDimensions,
+    ): FrameTextLayout = FrameTextLayout(
+        getTextContent(element, metadata).orEmpty(), element, getTextTypeface(element, metadata), dimensions,
+    )
 
     /**
      * 获取文本内容
@@ -981,14 +1204,15 @@ class FrameRenderer(
             TextType.APERTURE -> metadata.aperture
             TextType.RESOLUTION -> metadata.resolution
             TextType.FILTER_NAME -> metadata.lutId?.let { lutManager?.getLutInfo(it)?.getName() }
-            TextType.CUSTOM -> null
+            TextType.CUSTOM -> element.textMap[Locale.getDefault().language]
+                ?: element.textMap["en"]
             TextType.APP_NAME -> context.getString(R.string.app_name)
         }
 
         val finalContent = when {
             element.overrideText != null -> element.overrideText
             metadataOverride != null -> metadataOverride
-            element.textType == TextType.CUSTOM -> element.format
+            element.textType == TextType.CUSTOM -> content ?: element.format
             else -> content
         } ?: return null
 
