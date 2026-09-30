@@ -996,7 +996,8 @@ private fun RawToneMappingControls(
         RawRenderingEngine.Hncs,
         RawRenderingEngine.Lumix,
         RawRenderingEngine.Canon,
-        RawRenderingEngine.Fuji -> Unit
+        RawRenderingEngine.Fuji,
+        RawRenderingEngine.Leica -> Unit
 
         RawRenderingEngine.AgX -> {
             SliderSettingItem(
@@ -1374,6 +1375,7 @@ private fun rawRenderingEngineName(engine: RawRenderingEngine): String {
         RawRenderingEngine.Lumix -> stringResource(R.string.settings_raw_color_engine_lumix)
         RawRenderingEngine.Canon -> stringResource(R.string.settings_raw_color_engine_canon)
         RawRenderingEngine.Fuji -> stringResource(R.string.settings_raw_color_engine_fuji)
+        RawRenderingEngine.Leica -> stringResource(R.string.settings_raw_color_engine_leica)
     }
 }
 
@@ -1389,6 +1391,7 @@ private fun rawColorEngineDescription(engine: RawRenderingEngine): String {
         RawRenderingEngine.Lumix -> stringResource(R.string.settings_raw_color_engine_lumix_description)
         RawRenderingEngine.Canon -> stringResource(R.string.settings_raw_color_engine_canon_description)
         RawRenderingEngine.Fuji -> stringResource(R.string.settings_raw_color_engine_fuji_description)
+        RawRenderingEngine.Leica -> stringResource(R.string.settings_raw_color_engine_leica_description)
     }
 }
 

@@ -9,6 +9,7 @@ internal class EquivalentCameraCalibration(private val target: EquivalentCameraT
 
     private fun targetProfile(context: Context): DcpProfile = bundledProfile ?: synchronized(this) {
         bundledProfile ?: when (target) {
+            EquivalentCameraTarget.LeicaM9 -> LeicaProfile.calibrationProfile(context)
             EquivalentCameraTarget.LumixS9 -> {
                 val info = requireNotNull(DcpManager(context).getAvailableDcps().firstOrNull {
                     it.isBuiltIn && it.filePath == target.assetPath
@@ -100,7 +101,8 @@ internal class EquivalentCameraCalibration(private val target: EquivalentCameraT
 internal enum class EquivalentCameraTarget(val assetPath: String) {
     LumixS9("dcp/Panasonic DC-S9 Adobe Standard.dcp"),
     HasselbladX2DII100C("hncs/x2d_ii_100c_calibration.json"),
-    CanonEOSR5("canon/eos_r5/calibration.json");
+    CanonEOSR5("canon/eos_r5/calibration.json"),
+    LeicaM9("leica/m9/PROCESS/LUTS.bin");
 
     val calibration by lazy { EquivalentCameraCalibration(this) }
 }

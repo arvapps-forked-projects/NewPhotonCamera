@@ -523,6 +523,7 @@ class RawDemosaicProcessor {
             lumixRenderPlan = null,
             canonRenderPlan = null,
             fujiRenderPlan = if (warmupColorEngine.isFuji) FujiProfile.createRenderPlan(context, FujiFilmSimulation.Provia) else null,
+            leicaRenderPlan = if (warmupColorEngine.isLeica) LeicaProfile.createRenderPlan(context) else null,
             colorEngine = warmupColorEngine,
             profileToEngineTransform = identityMatrix3x3(),
             profileExposureUniforms = ProfileExposureUniforms.NEUTRAL,
@@ -1578,6 +1579,7 @@ class RawDemosaicProcessor {
         val lumixRenderPlan: LumixRenderPlan?,
         val canonRenderPlan: CanonRenderPlan?,
         val fujiRenderPlan: FujiRenderPlan?,
+        val leicaRenderPlan: LeicaRenderPlan?,
         val engineWorkingColorSpace: ColorSpace,
         val profileToEngineTransform: FloatArray,
         val shadowsHighlightsParams: ShadowsHighlightsParams,
@@ -2374,6 +2376,7 @@ class RawDemosaicProcessor {
             requestedColorEngine.isLumix -> EquivalentCameraTarget.LumixS9
             requestedColorEngine.isHncs -> EquivalentCameraTarget.HasselbladX2DII100C
             requestedColorEngine.isCanon -> EquivalentCameraTarget.CanonEOSR5
+            requestedColorEngine.isLeica -> EquivalentCameraTarget.LeicaM9
             else -> null
         }
         var embeddedDngRenderPlan: DcpRenderPlan? = sourceDngRenderPlan
@@ -3067,6 +3070,17 @@ class RawDemosaicProcessor {
                     "mode=${it.style.firmwareMode} renderer=${it.style.renderer} " +
                     "firmware=GXUP0008 adapter=2 input=linear-sRGB output=linear-sRGB position=after-public-pgtm " +
                     "firmwareControls=neutral sampleCalibration=false " +
+                    "photonHdr=${normalizedToneMappingParameters.usePhotonHdr}")
+            }
+        } else null
+        val leicaRenderPlan = if (colorEngine.isLeica) {
+            check(dngFile != null || actualMetadata.cameraCalibration != null) {
+                "Leica M9 requires fixed source ColorMatrix calibration for camera capture"
+            }
+            LeicaProfile.createRenderPlan(context).also {
+                PLog.i(TAG, "Leica M9 DSP: input=wb-camera-rgb output=linear-sRGB " +
+                    "curve=${it.curveIndex} " +
+                    "matrix=2 branch=R>=G contrast=2 saturation=2 localMapping=shared-PGTM " +
                     "photonHdr=${normalizedToneMappingParameters.usePhotonHdr}")
             }
         } else null
@@ -3815,6 +3829,7 @@ class RawDemosaicProcessor {
                         lumixRenderPlan = lumixRenderPlan,
                         canonRenderPlan = canonRenderPlan,
                         fujiRenderPlan = fujiRenderPlan,
+                        leicaRenderPlan = leicaRenderPlan,
                         engineWorkingColorSpace = engineWorkingColorSpace,
                         profileToEngineTransform = profileToEngineTransform,
                         shadowsHighlightsParams = shadowsHighlightsParams,
@@ -3999,6 +4014,7 @@ class RawDemosaicProcessor {
                     lumixRenderPlan = lumixRenderPlan,
                     canonRenderPlan = canonRenderPlan,
                     fujiRenderPlan = fujiRenderPlan,
+                    leicaRenderPlan = leicaRenderPlan,
                     colorEngine = colorEngine,
                     outputWorkingColorSpace = engineWorkingColorSpace,
                     profileToEngineTransform = combinedProfileToEngineTransform,
@@ -4030,6 +4046,7 @@ class RawDemosaicProcessor {
                             lumixRenderPlan = lumixRenderPlan,
                             canonRenderPlan = canonRenderPlan,
                             fujiRenderPlan = fujiRenderPlan,
+                            leicaRenderPlan = leicaRenderPlan,
                             colorEngine = colorEngine,
                             outputWorkingColorSpace = engineWorkingColorSpace,
                             profileToEngineTransform = combinedProfileToEngineTransform,
@@ -4240,6 +4257,7 @@ class RawDemosaicProcessor {
                             lumixRenderPlan = lumixRenderPlan,
                             canonRenderPlan = canonRenderPlan,
                             fujiRenderPlan = fujiRenderPlan,
+                            leicaRenderPlan = leicaRenderPlan,
                             colorEngine = colorEngine,
                             outputWorkingColorSpace = engineWorkingColorSpace,
                             profileToEngineTransform = profileToEngineTransform,
@@ -4603,6 +4621,7 @@ class RawDemosaicProcessor {
                     lumixRenderPlan = config.lumixRenderPlan,
                     canonRenderPlan = config.canonRenderPlan,
                     fujiRenderPlan = config.fujiRenderPlan,
+                    leicaRenderPlan = config.leicaRenderPlan,
                     colorEngine = config.colorEngine,
                     outputWorkingColorSpace = config.engineWorkingColorSpace,
                     profileToEngineTransform = config.profileToEngineTransform,
@@ -4641,6 +4660,7 @@ class RawDemosaicProcessor {
                         lumixRenderPlan = config.lumixRenderPlan,
                         canonRenderPlan = config.canonRenderPlan,
                         fujiRenderPlan = config.fujiRenderPlan,
+                        leicaRenderPlan = config.leicaRenderPlan,
                         colorEngine = config.colorEngine,
                         outputWorkingColorSpace = config.engineWorkingColorSpace,
                         profileToEngineTransform = config.profileToEngineTransform,
@@ -7075,6 +7095,7 @@ class RawDemosaicProcessor {
         lumixRenderPlan: LumixRenderPlan? = null,
         canonRenderPlan: CanonRenderPlan? = null,
         fujiRenderPlan: FujiRenderPlan? = null,
+        leicaRenderPlan: LeicaRenderPlan? = null,
         colorEngine: RawRenderingEngine = RawRenderingEngine.AdobeCurve,
         outputWorkingColorSpace: ColorSpace = ColorSpace.ProPhoto,
         profileToEngineTransform: FloatArray = identityMatrix3x3(),
@@ -7104,6 +7125,7 @@ class RawDemosaicProcessor {
                 lumixRenderPlan = lumixRenderPlan,
                 canonRenderPlan = canonRenderPlan,
                 fujiRenderPlan = fujiRenderPlan,
+                leicaRenderPlan = leicaRenderPlan,
                 colorEngine = colorEngine,
                 profileToEngineTransform = profileToEngineTransform,
                 profileExposureUniforms = profileExposureUniforms,
@@ -7224,6 +7246,7 @@ class RawDemosaicProcessor {
         lumixRenderPlan: LumixRenderPlan?,
         canonRenderPlan: CanonRenderPlan?,
         fujiRenderPlan: FujiRenderPlan?,
+        leicaRenderPlan: LeicaRenderPlan?,
         colorEngine: RawRenderingEngine,
         profileToEngineTransform: FloatArray,
         profileExposureUniforms: ProfileExposureUniforms,
@@ -7266,6 +7289,7 @@ class RawDemosaicProcessor {
                 lumixRenderPlan = lumixRenderPlan,
                 canonRenderPlan = canonRenderPlan,
                 fujiRenderPlan = fujiRenderPlan,
+                leicaRenderPlan = leicaRenderPlan,
                 bindProfileGainTable = { program ->
                     if (metadata != null) {
                         bindProfileGainTableMap(
@@ -7676,6 +7700,7 @@ class RawDemosaicProcessor {
         lumixRenderPlan: LumixRenderPlan?,
         canonRenderPlan: CanonRenderPlan?,
         fujiRenderPlan: FujiRenderPlan?,
+        leicaRenderPlan: LeicaRenderPlan?,
         colorEngine: RawRenderingEngine,
         outputWorkingColorSpace: ColorSpace,
         profileToEngineTransform: FloatArray,
@@ -7740,6 +7765,7 @@ class RawDemosaicProcessor {
                         lumixRenderPlan = lumixRenderPlan,
                         canonRenderPlan = canonRenderPlan,
                         fujiRenderPlan = fujiRenderPlan,
+                        leicaRenderPlan = leicaRenderPlan,
                         bindProfileGainTable = { program ->
                             bindProfileGainTableMap(
                                 program = program,

@@ -1284,4 +1284,6 @@
     <string name="settings_raw_fuji_film_simulation">菲林模擬</string>
     <string name="settings_raw_fuji_film_simulation_description">選擇 Fuji 菲林模擬，預設為 PROVIA。</string>
     <string name="settings_raw_color_engine_fuji_description">根據韌體資料調整的菲林模擬，呈現效果為近似實作。</string>
+    <string name="settings_raw_color_engine_leica">徠卡 M9</string>
+    <string name="settings_raw_color_engine_leica_description">徠卡 M9 色彩與色調。</string>
 </resources>

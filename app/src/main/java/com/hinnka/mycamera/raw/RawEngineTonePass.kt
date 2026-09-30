@@ -33,6 +33,7 @@ internal class RawEngineTonePass(
         val lumixRenderPlan: LumixRenderPlan? = null,
         val canonRenderPlan: CanonRenderPlan? = null,
         val fujiRenderPlan: FujiRenderPlan? = null,
+        val leicaRenderPlan: LeicaRenderPlan? = null,
         val bindProfileGainTable: (program: Int) -> Unit,
     )
 
@@ -54,6 +55,7 @@ internal class RawEngineTonePass(
     private val lumixAlgorithm = LumixToneAlgorithm(quad)
     private val canonAlgorithm = CanonToneAlgorithm(quad)
     private val fujiAlgorithm = FujiToneAlgorithm(quad)
+    private val leicaAlgorithm = LeicaToneAlgorithm(quad)
 
     fun render(input: Input): Output? = algorithmFor(input.colorEngine).render(input)
 
@@ -79,6 +81,7 @@ internal class RawEngineTonePass(
         lumixAlgorithm.release()
         canonAlgorithm.release()
         fujiAlgorithm.release()
+        leicaAlgorithm.release()
         dcpTextures.release()
         curveTextures.release()
     }
@@ -94,6 +97,7 @@ internal class RawEngineTonePass(
             RawRenderingEngine.Lumix -> lumixAlgorithm
             RawRenderingEngine.Canon -> canonAlgorithm
             RawRenderingEngine.Fuji -> fujiAlgorithm
+            RawRenderingEngine.Leica -> leicaAlgorithm
         }
     }
 
@@ -319,6 +323,7 @@ internal class RawEngineTonePass(
                 RawRenderingEngine.Lumix -> LumixToneShader.DEFINITION
                 RawRenderingEngine.Canon -> CanonToneShader.DEFINITION
                 RawRenderingEngine.Fuji -> FujiToneShader.DEFINITION
+                RawRenderingEngine.Leica -> LeicaToneShader.DEFINITION
             }
         }
 

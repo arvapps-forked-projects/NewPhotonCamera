@@ -47,6 +47,13 @@ enum class RawRenderingEngine(
         defaultExposureCompensationEv = 0f,
         exposureCompensationDomain = RawExposureCompensationDomain.Linear
     ),
+    Leica(
+        shaderId = 10,
+        // Output/adjustment space; M9's matrix/LUT stage consumes WB camera RGB.
+        workingColorSpace = ColorSpace.SRGB,
+        defaultExposureCompensationEv = 0f,
+        exposureCompensationDomain = RawExposureCompensationDomain.Linear
+    ),
     AgX(
         shaderId = 1,
         workingColorSpace = ColorSpace.BT2020,
@@ -85,8 +92,11 @@ enum class RawRenderingEngine(
     val isFuji: Boolean
         get() = this == Fuji
 
+    val isLeica: Boolean
+        get() = this == Leica
+
     val usesCameraInputDomain: Boolean
-        get() = isLumix || isHncs || isCanon
+        get() = isLumix || isHncs || isCanon || isLeica
 
     companion object {
         fun fromPersistedName(

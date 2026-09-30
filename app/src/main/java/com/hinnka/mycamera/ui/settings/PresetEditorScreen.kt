@@ -475,6 +475,7 @@ fun PresetEditorScreen(
                         RawRenderingEngine.Lumix -> stringResource(R.string.settings_raw_color_engine_lumix)
                         RawRenderingEngine.Canon -> stringResource(R.string.settings_raw_color_engine_canon)
                         RawRenderingEngine.Fuji -> stringResource(R.string.settings_raw_color_engine_fuji)
+                        RawRenderingEngine.Leica -> stringResource(R.string.settings_raw_color_engine_leica)
                         RawRenderingEngine.Hncs -> stringResource(
                             R.string.settings_raw_color_engine_hncs
                         )

@@ -349,4 +349,5 @@
     <string name="settings_raw_fuji_film_simulation">Simulasi film</string>
     <string name="settings_raw_fuji_film_simulation_description">Pilih simulasi film Fuji. PROVIA adalah pilihan default.</string>
     <string name="settings_raw_color_engine_fuji_description">Simulasi film yang diadaptasi dari data firmware, dengan hasil yang mendekati aslinya.</string>
+    <string name="settings_raw_color_engine_leica_description">Warna dan tonal Leica M9.</string>
 </resources>

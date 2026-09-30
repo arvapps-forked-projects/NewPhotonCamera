@@ -24,7 +24,7 @@ data class RawToneMappingParameters(
     fun colorMatchingEnabled(engine: RawRenderingEngine): Boolean = when {
         engine.isLumix -> lumixColorMatchingEnabled
         engine.isHncs -> hncsColorMatchingEnabled
-        engine.isCanon -> true
+        engine.isCanon || engine.isLeica -> true
         else -> false
     }
 

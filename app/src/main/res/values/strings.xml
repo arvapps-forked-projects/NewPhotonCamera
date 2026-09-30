@@ -1375,4 +1375,6 @@
     <string name="settings_raw_fuji_style_classic_negative" translatable="false">Classic Negative</string>
     <string name="settings_raw_fuji_style_nostalgic_neg" translatable="false">Nostalgic Neg</string>
     <string name="settings_raw_fuji_style_reala_ace" translatable="false">Reala Ace</string>
+    <string name="settings_raw_color_engine_leica">Leica M9</string>
+    <string name="settings_raw_color_engine_leica_description">Leica M9 color and tone.</string>
 </resources>
