@@ -3065,7 +3065,7 @@ class RawDemosaicProcessor {
             FujiProfile.createRenderPlan(context, normalizedToneMappingParameters.fujiFilmSimulation).also {
                 PLog.i(TAG, "Fuji FilmSimulation: style=${it.style.persistedValue} " +
                     "mode=${it.style.firmwareMode} renderer=${it.style.renderer} " +
-                    "adapter=2 input=linear-sRGB output=linear-sRGB position=after-public-pgtm " +
+                    "firmware=GXUP0008 adapter=2 input=linear-sRGB output=linear-sRGB position=after-public-pgtm " +
                     "firmwareControls=neutral sampleCalibration=false " +
                     "photonHdr=${normalizedToneMappingParameters.usePhotonHdr}")
             }

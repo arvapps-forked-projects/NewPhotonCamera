@@ -1,6 +1,6 @@
 package com.hinnka.mycamera.raw
 
-/** Stable storage keys; IDs refer specifically to the inspected FWUP0030 firmware. */
+/** Stable storage keys; mode/renderer IDs verified against the inspected GXUP0008 firmware. */
 enum class FujiFilmSimulation(val persistedValue: String, val firmwareMode: Int, val renderer: Int) {
     Provia("provia", 0, 0),
     Velvia("velvia", 3, 4),

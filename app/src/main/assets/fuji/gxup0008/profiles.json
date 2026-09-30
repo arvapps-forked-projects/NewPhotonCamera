@@ -1,9 +1,10 @@
 {
   "format_version": 2,
-  "firmware_sha256": "790d6deecf26766188b0e506e40645e6b816addfeba39a52334349405421724e",
-  "replay_sha256": "7253c45f8bf2e7753599216ea912575b558876bab9b141912620168473dcf502",
-  "selector_sha256": "e03cd88582e23b784ebb467b38848b8b0c30c8846fc87d414615d97d7edef0c5",
-  "candidate_db_sha256": "ee0e0f8c7760f2ec3399009b4f8fdb12d4652d16429afec0e59a582e988d90cb",
+  "firmware_id": "GXUP0008",
+  "firmware_sha256": "33ad2dc787defdbdac3bb0a95e914407f768b0532f119cfac1e034c18648397f",
+  "replay_sha256": "ab6469957ccb1b65116a899fac4bc0048753696349abc8c9e96abcc42dfcf021",
+  "selector_sha256": "95969d9863681477117fe5d9c5273e1a966db78c340d81c888f8c2ed2420172c",
+  "candidate_db_sha256": "3ae3ebf1dd193d804f5ad464a0d761bbe7182459350f8b170114882a85d743c3",
   "interpretation": "shared_y_tone__matrix9__curves31__cr_first_chroma__lut",
   "scope": "Template 7 parameter replay with candidate database; inferred ISP pixel interpretation.",
   "profiles": {
@@ -180,15 +181,15 @@
         1
       ],
       "coefficients9": [
-        1058,
-        -72,
-        38,
-        -73,
-        1126,
-        -29,
-        84,
-        -165,
-        1105
+        1040,
+        -61,
+        45,
+        -50,
+        1098,
+        -24,
+        82,
+        -145,
+        1087
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -202,10 +203,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        1141,
-        -12,
-        1520,
-        78
+        1128,
+        -6,
+        1587,
+        133
       ],
       "lut_index": 0,
       "lut_node_transform": 0
@@ -383,15 +384,15 @@
         2
       ],
       "coefficients9": [
-        1040,
-        -80,
-        64,
-        -69,
-        1213,
-        -120,
-        82,
-        -104,
-        1046
+        1080,
+        -150,
+        94,
+        -34,
+        1156,
+        -98,
+        80,
+        -73,
+        1017
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -405,10 +406,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        1344,
-        -106,
-        2108,
-        108
+        1300,
+        -100,
+        2119,
+        240
       ],
       "lut_index": 0,
       "lut_node_transform": 0
@@ -586,15 +587,15 @@
         3
       ],
       "coefficients9": [
-        1085,
-        58,
-        -119,
-        -118,
-        1187,
-        -45,
-        156,
-        -157,
-        1025
+        1039,
+        66,
+        -81,
+        -106,
+        1178,
+        -48,
+        172,
+        -190,
+        1042
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -608,10 +609,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        1049,
-        1,
-        1680,
-        -134
+        1036,
+        -4,
+        1626,
+        -154
       ],
       "lut_index": 0,
       "lut_node_transform": 0
@@ -789,15 +790,15 @@
         4
       ],
       "coefficients9": [
-        1108,
-        -45,
-        -39,
-        -32,
-        1105,
-        -49,
-        100,
-        -330,
-        1254
+        1112,
+        -63,
+        -25,
+        -23,
+        1054,
+        -7,
+        70,
+        -163,
+        1117
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -811,10 +812,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        885,
-        -10,
-        859,
-        -12
+        855,
+        -29,
+        1073,
+        94
       ],
       "lut_index": 0,
       "lut_node_transform": 0
@@ -992,15 +993,15 @@
         21
       ],
       "coefficients9": [
-        1164,
-        -290,
-        150,
-        -142,
-        1128,
-        38,
-        168,
-        -367,
-        1223
+        1101,
+        -246,
+        169,
+        -126,
+        1099,
+        51,
+        129,
+        -245,
+        1140
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -1014,10 +1015,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        747,
-        41,
-        660,
-        -298
+        745,
+        42,
+        754,
+        -257
       ],
       "lut_index": 0,
       "lut_node_transform": 0
@@ -1195,15 +1196,15 @@
         29
       ],
       "coefficients9": [
-        1219,
-        40,
-        -153,
-        -116,
-        1101,
+        1223,
         56,
-        -47,
-        -267,
-        1338
+        -174,
+        -103,
+        1079,
+        64,
+        -39,
+        -195,
+        1258
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -1217,10 +1218,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        1262,
-        158,
-        1295,
-        -148
+        1230,
+        175,
+        1365,
+        -105
       ],
       "lut_index": 2,
       "lut_node_transform": 0
@@ -1398,15 +1399,15 @@
         1
       ],
       "coefficients9": [
-        1039,
-        6,
-        -21,
-        -63,
-        1144,
-        -57,
-        80,
-        -219,
-        1163
+        1042,
+        15,
+        -33,
+        -47,
+        1115,
+        -44,
+        70,
+        -191,
+        1145
       ],
       "rgb_to_ycc_coefficients9": [
         306,
@@ -1420,10 +1421,10 @@
         -83
       ],
       "chroma_coefficients4": [
-        1074,
-        -21,
-        1471,
-        141
+        1041,
+        -25,
+        1466,
+        170
       ],
       "lut_index": 3,
       "lut_node_transform": 0

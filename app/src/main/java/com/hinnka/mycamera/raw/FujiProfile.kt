@@ -19,7 +19,7 @@ internal data class FujiRenderPlan(
 )
 
 internal object FujiProfile {
-    private const val ROOT = "fuji/fwup0030"
+    private const val ROOT = "fuji/gxup0008"
     private val cache = mutableMapOf<FujiFilmSimulation, FujiRenderPlan>()
 
     @Synchronized
@@ -28,6 +28,7 @@ internal object FujiProfile {
             val root = JSONObject(context.assets.open("$ROOT/profiles.json")
                 .bufferedReader().use { it.readText() })
             require(root.getInt("format_version") == 2)
+            require(root.getString("firmware_id") == "GXUP0008")
             val p = root.getJSONObject("profiles").getJSONObject(style.persistedValue)
             require(p.getInt("internal") == style.firmwareMode && p.getInt("renderer") == style.renderer)
             val fields = p.getJSONObject("reference_fields")
