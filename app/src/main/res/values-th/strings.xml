@@ -969,4 +969,7 @@
     <string name="settings_accent_color_reset">คืนค่าเริ่มต้น</string>
     <string name="settings_accent_color_hex_hint">ป้อนรหัสสีหกหลักในรูปแบบ #RRGGBB</string>
     <string name="settings_accent_color_hex_error">ป้อนอักขระฐานสิบหกหกตัว (0–9, A–F)</string>
+    <string name="settings_raw_fuji_film_simulation">การจำลองฟิล์ม</string>
+    <string name="settings_raw_fuji_film_simulation_description">เลือกการจำลองฟิล์ม Fuji โดยมี PROVIA เป็นค่าเริ่มต้น</string>
+    <string name="settings_raw_color_engine_fuji_description">การจำลองฟิล์มที่ดัดแปลงจากข้อมูลเฟิร์มแวร์ โดยแสดงผลแบบประมาณค่า</string>
 </resources>

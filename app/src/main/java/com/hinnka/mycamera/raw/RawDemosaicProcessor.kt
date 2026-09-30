@@ -522,6 +522,7 @@ class RawDemosaicProcessor {
             hncsRenderPlan = null,
             lumixRenderPlan = null,
             canonRenderPlan = null,
+            fujiRenderPlan = if (warmupColorEngine.isFuji) FujiProfile.createRenderPlan(context, FujiFilmSimulation.Provia) else null,
             colorEngine = warmupColorEngine,
             profileToEngineTransform = identityMatrix3x3(),
             profileExposureUniforms = ProfileExposureUniforms.NEUTRAL,
@@ -1576,6 +1577,7 @@ class RawDemosaicProcessor {
         val hncsRenderPlan: HncsRenderPlan?,
         val lumixRenderPlan: LumixRenderPlan?,
         val canonRenderPlan: CanonRenderPlan?,
+        val fujiRenderPlan: FujiRenderPlan?,
         val engineWorkingColorSpace: ColorSpace,
         val profileToEngineTransform: FloatArray,
         val shadowsHighlightsParams: ShadowsHighlightsParams,
@@ -3059,6 +3061,15 @@ class RawDemosaicProcessor {
                 colorCorrectionCoordinate = lumixColorCorrectionCoordinate,
             )
         } else null
+        val fujiRenderPlan = if (colorEngine.isFuji) {
+            FujiProfile.createRenderPlan(context, normalizedToneMappingParameters.fujiFilmSimulation).also {
+                PLog.i(TAG, "Fuji FilmSimulation: style=${it.style.persistedValue} " +
+                    "mode=${it.style.firmwareMode} renderer=${it.style.renderer} " +
+                    "adapter=2 input=linear-sRGB output=linear-sRGB position=after-public-pgtm " +
+                    "firmwareControls=neutral sampleCalibration=false " +
+                    "photonHdr=${normalizedToneMappingParameters.usePhotonHdr}")
+            }
+        } else null
         val canonRenderPlan = if (colorEngine.isCanon) {
             check(profileWorkingColorSpace == ColorSpace.ProPhoto)
             check(dngFile != null || actualMetadata.cameraCalibration != null) {
@@ -3803,6 +3814,7 @@ class RawDemosaicProcessor {
                         hncsRenderPlan = hncsRenderPlan,
                         lumixRenderPlan = lumixRenderPlan,
                         canonRenderPlan = canonRenderPlan,
+                        fujiRenderPlan = fujiRenderPlan,
                         engineWorkingColorSpace = engineWorkingColorSpace,
                         profileToEngineTransform = profileToEngineTransform,
                         shadowsHighlightsParams = shadowsHighlightsParams,
@@ -3986,6 +3998,7 @@ class RawDemosaicProcessor {
                     hncsRenderPlan = hncsRenderPlan,
                     lumixRenderPlan = lumixRenderPlan,
                     canonRenderPlan = canonRenderPlan,
+                    fujiRenderPlan = fujiRenderPlan,
                     colorEngine = colorEngine,
                     outputWorkingColorSpace = engineWorkingColorSpace,
                     profileToEngineTransform = combinedProfileToEngineTransform,
@@ -4016,6 +4029,7 @@ class RawDemosaicProcessor {
                             hncsRenderPlan = hncsRenderPlan,
                             lumixRenderPlan = lumixRenderPlan,
                             canonRenderPlan = canonRenderPlan,
+                            fujiRenderPlan = fujiRenderPlan,
                             colorEngine = colorEngine,
                             outputWorkingColorSpace = engineWorkingColorSpace,
                             profileToEngineTransform = combinedProfileToEngineTransform,
@@ -4225,6 +4239,7 @@ class RawDemosaicProcessor {
                             hncsRenderPlan = hncsRenderPlan,
                             lumixRenderPlan = lumixRenderPlan,
                             canonRenderPlan = canonRenderPlan,
+                            fujiRenderPlan = fujiRenderPlan,
                             colorEngine = colorEngine,
                             outputWorkingColorSpace = engineWorkingColorSpace,
                             profileToEngineTransform = profileToEngineTransform,
@@ -4587,6 +4602,7 @@ class RawDemosaicProcessor {
                     hncsRenderPlan = config.hncsRenderPlan,
                     lumixRenderPlan = config.lumixRenderPlan,
                     canonRenderPlan = config.canonRenderPlan,
+                    fujiRenderPlan = config.fujiRenderPlan,
                     colorEngine = config.colorEngine,
                     outputWorkingColorSpace = config.engineWorkingColorSpace,
                     profileToEngineTransform = config.profileToEngineTransform,
@@ -4624,6 +4640,7 @@ class RawDemosaicProcessor {
                         hncsRenderPlan = config.hncsRenderPlan,
                         lumixRenderPlan = config.lumixRenderPlan,
                         canonRenderPlan = config.canonRenderPlan,
+                        fujiRenderPlan = config.fujiRenderPlan,
                         colorEngine = config.colorEngine,
                         outputWorkingColorSpace = config.engineWorkingColorSpace,
                         profileToEngineTransform = config.profileToEngineTransform,
@@ -7057,6 +7074,7 @@ class RawDemosaicProcessor {
         hncsRenderPlan: HncsRenderPlan? = null,
         lumixRenderPlan: LumixRenderPlan? = null,
         canonRenderPlan: CanonRenderPlan? = null,
+        fujiRenderPlan: FujiRenderPlan? = null,
         colorEngine: RawRenderingEngine = RawRenderingEngine.AdobeCurve,
         outputWorkingColorSpace: ColorSpace = ColorSpace.ProPhoto,
         profileToEngineTransform: FloatArray = identityMatrix3x3(),
@@ -7085,6 +7103,7 @@ class RawDemosaicProcessor {
                 hncsRenderPlan = hncsRenderPlan,
                 lumixRenderPlan = lumixRenderPlan,
                 canonRenderPlan = canonRenderPlan,
+                fujiRenderPlan = fujiRenderPlan,
                 colorEngine = colorEngine,
                 profileToEngineTransform = profileToEngineTransform,
                 profileExposureUniforms = profileExposureUniforms,
@@ -7204,6 +7223,7 @@ class RawDemosaicProcessor {
         hncsRenderPlan: HncsRenderPlan?,
         lumixRenderPlan: LumixRenderPlan?,
         canonRenderPlan: CanonRenderPlan?,
+        fujiRenderPlan: FujiRenderPlan?,
         colorEngine: RawRenderingEngine,
         profileToEngineTransform: FloatArray,
         profileExposureUniforms: ProfileExposureUniforms,
@@ -7245,6 +7265,7 @@ class RawDemosaicProcessor {
                 hncsRenderPlan = hncsRenderPlan,
                 lumixRenderPlan = lumixRenderPlan,
                 canonRenderPlan = canonRenderPlan,
+                fujiRenderPlan = fujiRenderPlan,
                 bindProfileGainTable = { program ->
                     if (metadata != null) {
                         bindProfileGainTableMap(
@@ -7654,6 +7675,7 @@ class RawDemosaicProcessor {
         hncsRenderPlan: HncsRenderPlan?,
         lumixRenderPlan: LumixRenderPlan?,
         canonRenderPlan: CanonRenderPlan?,
+        fujiRenderPlan: FujiRenderPlan?,
         colorEngine: RawRenderingEngine,
         outputWorkingColorSpace: ColorSpace,
         profileToEngineTransform: FloatArray,
@@ -7717,6 +7739,7 @@ class RawDemosaicProcessor {
                         hncsRenderPlan = hncsRenderPlan,
                         lumixRenderPlan = lumixRenderPlan,
                         canonRenderPlan = canonRenderPlan,
+                        fujiRenderPlan = fujiRenderPlan,
                         bindProfileGainTable = { program ->
                             bindProfileGainTableMap(
                                 program = program,

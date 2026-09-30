@@ -35,6 +35,7 @@ import com.hinnka.mycamera.raw.HncsFilmCurveMode
 import com.hinnka.mycamera.raw.RawProfileToneMapMode
 import com.hinnka.mycamera.raw.LumixPhotoStyle
 import com.hinnka.mycamera.raw.CanonPictureStyle
+import com.hinnka.mycamera.raw.FujiFilmSimulation
 import com.hinnka.mycamera.raw.RawToneMappingParameters
 import com.hinnka.mycamera.raw.RawRenderingEngine
 import com.hinnka.mycamera.raw.RawDenoiseDefaults
@@ -46,6 +47,7 @@ import com.hinnka.mycamera.ui.components.FrameSelector
 import com.hinnka.mycamera.ui.components.RawBaselineColorCorrectionSelector
 import com.hinnka.mycamera.ui.components.LumixPhotoStyleSelector
 import com.hinnka.mycamera.ui.components.CanonPictureStyleSelector
+import com.hinnka.mycamera.ui.components.FujiFilmSimulationSelector
 import com.hinnka.mycamera.ui.components.CanonExposureCompensationSetting
 import com.hinnka.mycamera.ui.components.RawDcpSelector
 import com.hinnka.mycamera.ui.components.SliderSettingItem
@@ -145,6 +147,9 @@ fun PresetEditorScreen(
     var rawCanonPictureStyle by remember {
         mutableStateOf(CanonPictureStyle.fromPersistedValue(sourcePreset?.rawCanonPictureStyle))
     }
+    var rawFujiFilmSimulation by remember {
+        mutableStateOf(FujiFilmSimulation.fromPersistedValue(sourcePreset?.rawFujiFilmSimulation))
+    }
     var rawCanonExposureCompensationEv by remember {
         mutableStateOf(sourcePreset?.rawCanonExposureCompensationEv
             ?: RawToneMappingParameters.CANON_EXPOSURE_COMPENSATION_DEFAULT)
@@ -190,6 +195,7 @@ fun PresetEditorScreen(
             rawOppoMasterToneMap = rawOppoMasterToneMap,
             rawLumixPhotoStyle = rawLumixPhotoStyle.assetName,
             rawCanonPictureStyle = rawCanonPictureStyle.persistedValue,
+            rawFujiFilmSimulation = rawFujiFilmSimulation.persistedValue,
             rawCanonExposureCompensationEv = rawCanonExposureCompensationEv,
             rawLumixColorMatchingEnabled = sourcePreset?.rawLumixColorMatchingEnabled ?: true,
             rawHncsColorMatchingEnabled = sourcePreset?.rawHncsColorMatchingEnabled ?: true,
@@ -468,6 +474,7 @@ fun PresetEditorScreen(
                         RawRenderingEngine.Spektrafilm -> stringResource(R.string.settings_raw_color_engine_spectral_film)
                         RawRenderingEngine.Lumix -> stringResource(R.string.settings_raw_color_engine_lumix)
                         RawRenderingEngine.Canon -> stringResource(R.string.settings_raw_color_engine_canon)
+                        RawRenderingEngine.Fuji -> stringResource(R.string.settings_raw_color_engine_fuji)
                         RawRenderingEngine.Hncs -> stringResource(
                             R.string.settings_raw_color_engine_hncs
                         )
@@ -494,6 +501,13 @@ fun PresetEditorScreen(
                     LumixPhotoStyleSelector(
                         selectedStyle = rawLumixPhotoStyle,
                         onSelectStyle = { rawLumixPhotoStyle = it },
+                    )
+                }
+
+                AnimatedVisibility(visible = rawRenderingEngine.isFuji) {
+                    FujiFilmSimulationSelector(
+                        selectedStyle = rawFujiFilmSimulation,
+                        onSelectStyle = { rawFujiFilmSimulation = it },
                     )
                 }
 

@@ -32,6 +32,7 @@ internal class RawEngineTonePass(
         val hncsRenderPlan: HncsRenderPlan?,
         val lumixRenderPlan: LumixRenderPlan? = null,
         val canonRenderPlan: CanonRenderPlan? = null,
+        val fujiRenderPlan: FujiRenderPlan? = null,
         val bindProfileGainTable: (program: Int) -> Unit,
     )
 
@@ -52,6 +53,7 @@ internal class RawEngineTonePass(
     private val hncsAlgorithm = HncsToneAlgorithm(quad)
     private val lumixAlgorithm = LumixToneAlgorithm(quad)
     private val canonAlgorithm = CanonToneAlgorithm(quad)
+    private val fujiAlgorithm = FujiToneAlgorithm(quad)
 
     fun render(input: Input): Output? = algorithmFor(input.colorEngine).render(input)
 
@@ -76,6 +78,7 @@ internal class RawEngineTonePass(
         hncsAlgorithm.release()
         lumixAlgorithm.release()
         canonAlgorithm.release()
+        fujiAlgorithm.release()
         dcpTextures.release()
         curveTextures.release()
     }
@@ -90,6 +93,7 @@ internal class RawEngineTonePass(
             RawRenderingEngine.Hncs -> hncsAlgorithm
             RawRenderingEngine.Lumix -> lumixAlgorithm
             RawRenderingEngine.Canon -> canonAlgorithm
+            RawRenderingEngine.Fuji -> fujiAlgorithm
         }
     }
 
@@ -314,6 +318,7 @@ internal class RawEngineTonePass(
                 RawRenderingEngine.Hncs -> HncsToneShader.DEFINITION
                 RawRenderingEngine.Lumix -> LumixToneShader.DEFINITION
                 RawRenderingEngine.Canon -> CanonToneShader.DEFINITION
+                RawRenderingEngine.Fuji -> FujiToneShader.DEFINITION
             }
         }
 
@@ -479,7 +484,7 @@ internal class RawEngineTonePass(
             // linear-domain adjustments are complete.
             fragColor = vec4(color, 1.0);
         }
-            """.trimIndent()
+            """.trimIndent().trimStart() // Interpolated snippets must not leave spaces before #version.
         }
 
         internal val RAW_TONE_MAPPING_COMBINED_UNIFORMS = """

@@ -346,4 +346,7 @@
     <string name="settings_accent_color_reset">Rétablir par défaut</string>
     <string name="settings_accent_color_hex_hint">Saisissez un code couleur à six chiffres au format #RRGGBB.</string>
     <string name="settings_accent_color_hex_error">Saisissez six caractères hexadécimaux (0–9, A–F).</string>
+    <string name="settings_raw_fuji_film_simulation">Simulation de film</string>
+    <string name="settings_raw_fuji_film_simulation_description">Choisissez une simulation de film Fuji. PROVIA est le réglage par défaut.</string>
+    <string name="settings_raw_color_engine_fuji_description">Simulation de film adaptée des données du firmware, avec un rendu approximatif.</string>
 </resources>

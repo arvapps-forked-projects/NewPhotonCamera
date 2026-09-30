@@ -69,6 +69,8 @@ data class GalleryMediaEntity(
     val rawLumixPhotoStyle: String = "standard",
     @ColumnInfo(defaultValue = "'standard'")
     val rawCanonPictureStyle: String = "standard",
+    @ColumnInfo(defaultValue = "'provia'")
+    val rawFujiFilmSimulation: String = "provia",
     @ColumnInfo(defaultValue = "-0.5")
     val rawCanonExposureCompensationEv: Float = RawToneMappingParameters.CANON_EXPOSURE_COMPENSATION_DEFAULT,
     @ColumnInfo(defaultValue = "1")

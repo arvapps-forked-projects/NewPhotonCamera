@@ -8,7 +8,7 @@ import com.hinnka.mycamera.raw.RawToneMappingParameters
 
 @Database(
     entities = [GalleryMediaEntity::class],
-    version = 46,
+    version = 47,
     exportSchema = false
 )
 @androidx.room.TypeConverters(GalleryConverters::class)
@@ -814,6 +814,12 @@ abstract class GalleryDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_46_47 = object : androidx.room.migration.Migration(46, 47) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE gallery_media ADD COLUMN rawFujiFilmSimulation TEXT NOT NULL DEFAULT 'provia'")
+            }
+        }
+
         fun getInstance(context: Context): GalleryDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -866,7 +872,8 @@ abstract class GalleryDatabase : RoomDatabase() {
                         MIGRATION_42_43,
                         MIGRATION_43_44,
                         MIGRATION_44_45,
-                        MIGRATION_45_46
+                        MIGRATION_45_46,
+                        MIGRATION_46_47
                     )
                     .fallbackToDestructiveMigrationOnDowngrade(false)
                     .fallbackToDestructiveMigration(false)
