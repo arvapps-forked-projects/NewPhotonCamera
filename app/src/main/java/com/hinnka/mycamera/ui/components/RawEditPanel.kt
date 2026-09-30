@@ -1346,18 +1346,24 @@ private fun RawRenderingEngineSelector(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                visibleEngines.forEach { engine ->
-                    RawColorEngineItem(
-                        name = rawRenderingEngineName(engine),
-                        description = rawColorEngineDescription(engine),
-                        isSelected = engine == selectedEngine,
-                        onClick = {
-                            onSelectEngine(engine)
-                            showSheet = false
-                        }
-                    )
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
+                    contentPadding = PaddingValues(bottom = 32.dp)
+                ) {
+                    items(visibleEngines, key = { it.name }) { engine ->
+                        RawColorEngineItem(
+                            name = rawRenderingEngineName(engine),
+                            description = rawColorEngineDescription(engine),
+                            isSelected = engine == selectedEngine,
+                            onClick = {
+                                onSelectEngine(engine)
+                                showSheet = false
+                            }
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
