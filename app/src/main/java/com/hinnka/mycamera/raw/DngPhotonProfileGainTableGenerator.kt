@@ -201,6 +201,8 @@ internal object DngPhotonProfileGainTableGenerator {
      * chromaticity so the downstream arithmetic-RGB Dehaze curve is represented by the scalar
      * table without reverting to a neutral-gray assumption. [postExposureEv] controls the SLM
      * rolloff/digital response after that composed target, independently of HDRNet inference.
+     * The final scalar target then passes through Standard Gamma, sRGB decode and inverse
+     * ACR3 in one LUT, so the renderer's subsequent ACR3 restores Standard's linear output.
      */
     fun mapFromHdrNetCoefficients(
         plan: HdrNetProfileGainTablePlan,
@@ -224,7 +226,7 @@ internal object DngPhotonProfileGainTableGenerator {
             modelInput = modelInput,
             guideShifts = HDRNET_GUIDE_SHIFTS,
             guideSlopes = HDRNET_GUIDE_SLOPES,
-            acr3Curve = ACR3Curve.samples(),
+            outputCurve = MgcHdrNetOutputCurve.samples(),
             renderMinGain = HDRNET_RENDER_MIN_GAIN,
             renderMaxGain = HDRNET_RENDER_MAX_GAIN,
             renderMaxGainBlendThreshold = HDRNET_RENDER_MAX_GAIN_BLEND_THRESHOLD,

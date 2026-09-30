@@ -197,28 +197,11 @@ float EvaluateGuide(float source_luma, const float* shifts,
   return std::clamp(guide, 0.0f, 1.0f);
 }
 
-float InputForAcrOutput(float output, const float* curve, int curve_count) {
-  const float target = std::clamp(output, curve[0], curve[curve_count - 1]);
-  if (target <= curve[0]) return 0.0f;
-  if (target >= curve[curve_count - 1]) return 1.0f;
-
-  int lower_index = 0;
-  int upper_index = curve_count - 1;
-  while (lower_index + 1 < upper_index) {
-    const int middle_index = (lower_index + upper_index) >> 1;
-    if (curve[middle_index] < target) {
-      lower_index = middle_index;
-    } else {
-      upper_index = middle_index;
-    }
-  }
-  const float lower_output = curve[lower_index];
-  const float upper_output = curve[upper_index];
-  const float amount = upper_output > lower_output
-                           ? (target - lower_output) /
-                                 (upper_output - lower_output)
-                           : 0.0f;
-  return (lower_index + amount) / static_cast<float>(curve_count - 1);
+float SampleOutputCurve(float input, const float* curve, int curve_count) {
+  const float position = std::clamp(input, 0.0f, 1.0f) * (curve_count - 1);
+  const int lower = static_cast<int>(position);
+  const int upper = std::min(lower + 1, curve_count - 1);
+  return Lerp(curve[lower], curve[upper], position - lower);
 }
 
 bool IsFiniteArray(const float* values, int count) {
@@ -228,12 +211,12 @@ bool IsFiniteArray(const float* values, int count) {
   return true;
 }
 
-bool IsValidAcrCurve(const float* curve, int count) {
+bool IsValidOutputCurve(const float* curve, int count) {
   if (count < 2 || !IsFiniteArray(curve, count)) return false;
   for (int index = 1; index < count; ++index) {
     if (curve[index] < curve[index - 1]) return false;
   }
-  return curve[count - 1] > curve[0];
+  return curve[0] == 0.0f && curve[count - 1] == 1.0f;
 }
 
 struct DehazeCurve {
@@ -737,12 +720,12 @@ Java_com_hinnka_mycamera_raw_DngHdrNetProfileGainTableNative_nativeGenerateGains
     jfloat render_max_gain_blend_threshold,
     jfloat min_table_gain, jfloat max_table_gain,
     jfloatArray guide_shifts_array,
-    jfloatArray guide_slopes_array, jfloatArray acr_curve_array,
+    jfloatArray guide_slopes_array, jfloatArray output_curve_array,
     jfloatArray dehaze_curve_array, jfloat post_exposure_gain, jfloatArray map_input_weights_array,
     jfloatArray output_gains_array) {
   if (coefficients_array == nullptr || model_input_array == nullptr ||
       guide_shifts_array == nullptr ||
-      guide_slopes_array == nullptr || acr_curve_array == nullptr ||
+      guide_slopes_array == nullptr || output_curve_array == nullptr ||
       dehaze_curve_array == nullptr || map_input_weights_array == nullptr || output_gains_array == nullptr ||
       input_width <= 0 || input_height <= 0 || input_channels < 3 ||
       source_grid_width <= 0 ||
@@ -773,7 +756,7 @@ Java_com_hinnka_mycamera_raw_DngHdrNetProfileGainTableNative_nativeGenerateGains
       static_cast<int64_t>(output_grid_width) * output_grid_height;
   const int64_t output_values = cell_count * point_count;
   const int guide_count = env->GetArrayLength(guide_shifts_array);
-  const int acr_curve_count = env->GetArrayLength(acr_curve_array);
+  const int output_curve_count = env->GetArrayLength(output_curve_array);
   if (coefficient_values <= 0 || input_values <= 0 || output_values <= 0 ||
       coefficient_values > std::numeric_limits<jsize>::max() ||
       input_values > std::numeric_limits<jsize>::max() ||
@@ -781,7 +764,7 @@ Java_com_hinnka_mycamera_raw_DngHdrNetProfileGainTableNative_nativeGenerateGains
       env->GetArrayLength(coefficients_array) != coefficient_values ||
       env->GetArrayLength(model_input_array) != input_values ||
       env->GetArrayLength(guide_slopes_array) != guide_count ||
-      acr_curve_count < 2 ||
+      output_curve_count < 2 ||
       env->GetArrayLength(dehaze_curve_array) != kDehazeCurveValueCount ||
       env->GetArrayLength(map_input_weights_array) != 5 ||
       env->GetArrayLength(output_gains_array) != output_values) {
@@ -792,13 +775,13 @@ Java_com_hinnka_mycamera_raw_DngHdrNetProfileGainTableNative_nativeGenerateGains
   ScopedFloatArray model_input(env, model_input_array);
   ScopedFloatArray guide_shifts(env, guide_shifts_array);
   ScopedFloatArray guide_slopes(env, guide_slopes_array);
-  ScopedFloatArray acr_curve(env, acr_curve_array);
+  ScopedFloatArray output_curve(env, output_curve_array);
   ScopedFloatArray dehaze_curve_values(env, dehaze_curve_array);
   ScopedFloatArray map_input_weights(env, map_input_weights_array);
   ScopedFloatArray output_gains(env, output_gains_array);
   if (coefficients.data() == nullptr || model_input.data() == nullptr ||
       guide_shifts.data() == nullptr ||
-      guide_slopes.data() == nullptr || acr_curve.data() == nullptr ||
+      guide_slopes.data() == nullptr || output_curve.data() == nullptr ||
       dehaze_curve_values.data() == nullptr || map_input_weights.data() == nullptr || output_gains.data() == nullptr) {
     LogError("Unable to acquire HDRNet PGTM arrays");
     return JNI_FALSE;
@@ -809,7 +792,7 @@ Java_com_hinnka_mycamera_raw_DngHdrNetProfileGainTableNative_nativeGenerateGains
       !IsFiniteArray(guide_shifts.data(), guide_count) ||
       !IsFiniteArray(guide_slopes.data(), guide_count) ||
       !IsFiniteArray(map_input_weights.data(), 5) ||
-      !IsValidAcrCurve(acr_curve.data(), acr_curve_count) ||
+      !IsValidOutputCurve(output_curve.data(), output_curve_count) ||
       !ReadDehazeCurve(
           dehaze_curve_values.data(), kDehazeCurveValueCount, &dehaze_curve)) {
     LogError("Rejected non-finite HDRNet PGTM input");
@@ -911,8 +894,10 @@ Java_com_hinnka_mycamera_raw_DngHdrNetProfileGainTableNative_nativeGenerateGains
           gain_curve[point] = min_table_gain;
           continue;
         }
-        const float pre_curve_target = InputForAcrOutput(
-            target_luma, acr_curve.data(), acr_curve_count);
+        // One forward lookup composes MGC Standard Gamma -> sRGB decode -> inverse
+        // ACR3. The forward ACR3 used by the DNG renderer remains unchanged.
+        const float pre_curve_target = SampleOutputCurve(
+            target_luma, output_curve.data(), output_curve_count);
         // PGTM is applied before BaselineExposure, so divide by source luma after that
         // pending exposure. The subsequent exposure ramp then restores pre_curve_target exactly.
         const float baseline_applied_source_intensity =
