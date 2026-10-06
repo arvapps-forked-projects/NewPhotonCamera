@@ -2467,12 +2467,13 @@ class RawDemosaicProcessor {
                     profileWorkingColorSpace)) {
                     "ForwardMatrix calibration requires an independent scene white for dual-illuminant interpolation"
                 }
-            } else if ((requestedColorEngine.usesCameraInputDomain) &&
-                dngRawData.cameraCalibration == null
+            } else if (primarySourceProfile != null &&
+                sourceCalibration != dngRawData.cameraCalibration
             ) {
-                primarySourceProfile?.let {
-                    DngSdkColorSpec.resolveSourceMetadata(it, importedMetadata, profileWorkingColorSpace)
-                } ?: importedMetadata
+                // The Kotlin TIFF reader can resolve a real profile that LibRaw did not
+                // expose. Replace native's fixed fallback and its derived white together.
+                DngSdkColorSpec.resolveSourceMetadata(primarySourceProfile, importedMetadata, profileWorkingColorSpace)
+                    ?: importedMetadata
             } else importedMetadata
             actualMetadata = applyDngMetadataOverrides(
                 metadata = calibratedMetadata.copy(

@@ -308,7 +308,12 @@ internal object DngEmbeddedProfile {
             analogBalance = analogBalance,
             cameraCalibration1 = cameraCalibration1,
             cameraCalibration2 = cameraCalibration2
-        )
+        ).let { profile ->
+            // A table-only creative profile has no source calibration of its own.
+            // Resolve explicit source matrix tags here; native handles absent tags.
+            if (listOf(TAG_COLOR_MATRIX1, TAG_COLOR_MATRIX2, TAG_FORWARD_MATRIX1, TAG_FORWARD_MATRIX2)
+                    .any(ifd::containsKey)) RawColorCalibrationPolicy.resolveProfile(profile) else profile
+        }
     }
 
     private fun readToneCurve(

@@ -29,6 +29,8 @@
 #include "dng_memory_stream.h"
 #include "libraw/libraw.h"
 #include "math_utils.h"
+#include "fixed_raw_calibration.h"
+#include "srgb_color_matrix_policy.h"
 
 #ifndef LOG_TAG
 #define LOG_TAG "native-lib"
@@ -1039,6 +1041,40 @@ static bool hasMatrixSignal(const Matrix3x3 &matrix) {
   return sum > 0.01f;
 }
 
+// Mirrors RawColorCalibrationPolicy. Check IEEE bits because this target uses
+// -ffast-math, under which std::isfinite alone is not a reliable input validator.
+static bool isUsableSourceMatrix(const Matrix3x3 &matrix, bool forward = false) {
+  double scale = 0.0, signal = 0.0;
+  for (float value : matrix.m) {
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    if ((bits & 0x7f800000u) == 0x7f800000u) return false;
+    const double magnitude = std::abs(static_cast<double>(value));
+    scale = std::max(scale, magnitude);
+    signal += magnitude;
+  }
+  if (signal <= 0.01) return false;
+  double m[9];
+  for (int i = 0; i < 9; ++i) m[i] = matrix.m[i] / scale;
+  const double det = m[0] * (m[4] * m[8] - m[5] * m[7]) -
+      m[1] * (m[3] * m[8] - m[5] * m[6]) + m[2] * (m[3] * m[7] - m[4] * m[6]);
+  if (std::abs(det) <= 1e-6) return false;
+  if (forward) {
+    for (int row = 0; row < 3; ++row)
+      if (m[row * 3] + m[row * 3 + 1] + m[row * 3 + 2] <= 1e-6) return false;
+  }
+  return true;
+}
+
+static bool isUsableSourceColorMatrix(const Matrix3x3 &matrix, int illuminant) {
+  if (!isUsableSourceMatrix(matrix)) return false;
+  if (srgb_color_matrix_policy::isPlaceholder(matrix.m, illuminant)) {
+    LOGI("Ignoring sRGB placeholder ColorMatrix, illuminant=%d", illuminant);
+    return false;
+  }
+  return true;
+}
+
 static jfloatArray matrixToJava(JNIEnv *env, const Matrix3x3 &matrix) {
   jfloatArray result = env->NewFloatArray(9);
   if (result) {
@@ -1763,22 +1799,46 @@ static bool computeWbFromDngAsShotWhiteXY(const LibRaw &rawProcessor,
 
   Matrix3x3 colorMatrix1;
   Matrix3x3 colorMatrix2;
+  Matrix3x3 forwardMatrix1;
+  Matrix3x3 forwardMatrix2;
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
       colorMatrix1.m[i * 3 + j] =
           rawProcessor.imgdata.color.dng_color[0].colormatrix[i][j];
       colorMatrix2.m[i * 3 + j] =
           rawProcessor.imgdata.color.dng_color[1].colormatrix[i][j];
+      forwardMatrix1.m[i * 3 + j] =
+          rawProcessor.imgdata.color.dng_color[0].forwardmatrix[i][j];
+      forwardMatrix2.m[i * 3 + j] =
+          rawProcessor.imgdata.color.dng_color[1].forwardmatrix[i][j];
     }
   }
 
   Matrix3x3 xyzToCamera;
-  const bool hasColor1 = hasMatrixSignal(colorMatrix1);
-  const bool hasColor2 = hasMatrixSignal(colorMatrix2);
+  int illuminant1 = rawProcessor.imgdata.color.dng_color[0].illuminant;
+  int illuminant2 = rawProcessor.imgdata.color.dng_color[1].illuminant;
+  bool hasColor1 = isUsableSourceColorMatrix(colorMatrix1, illuminant1);
+  bool hasColor2 = isUsableSourceColorMatrix(colorMatrix2, illuminant2);
+  const bool usableForward = !isSrgbPlaceholderForwardMatrixPair(
+      rawProcessor.imgdata.color.dng_color[0], rawProcessor.imgdata.color.dng_color[1]) &&
+      (isUsableSourceMatrix(forwardMatrix1, true) || isUsableSourceMatrix(forwardMatrix2, true));
+  if (!hasColor1 && !hasColor2 && !usableForward) {
+    // AsShotWhiteXY-derived WB must use the same replacement as the render CCM.
+    memcpy(colorMatrix1.m, fixed_raw_calibration::colorMatrix1, sizeof(colorMatrix1.m));
+    memcpy(colorMatrix2.m, fixed_raw_calibration::colorMatrix2, sizeof(colorMatrix2.m));
+    illuminant1 = fixed_raw_calibration::illuminant1;
+    illuminant2 = fixed_raw_calibration::illuminant2;
+    Matrix3x3 calibration1, calibration2;
+    memcpy(calibration1.m, fixed_raw_calibration::cameraCalibration1, sizeof(calibration1.m));
+    memcpy(calibration2.m, fixed_raw_calibration::cameraCalibration2, sizeof(calibration2.m));
+    // Apply individual-camera calibration after CM normalization, as in the render path.
+    colorMatrix1 = calibration1.multiply(normalizeDngColorMatrix(colorMatrix1));
+    colorMatrix2 = calibration2.multiply(normalizeDngColorMatrix(colorMatrix2));
+    hasColor1 = hasColor2 = true;
+  }
   if (!findXyzToCamera(
           whiteXy, colorMatrix1, hasColor1, colorMatrix2, hasColor2,
-          rawProcessor.imgdata.color.dng_color[0].illuminant,
-          rawProcessor.imgdata.color.dng_color[1].illuminant, xyzToCamera)) {
+          illuminant1, illuminant2, xyzToCamera)) {
     return false;
   }
 
@@ -3373,9 +3433,8 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
   Matrix3x3 cameraCalibration2 = Matrix3x3::identity();
 
   // Keep the fixed source calibration separate from finalCCM, which is the
-  // current frame's WB/working-space transform. Only embedded DNG calibration
-  // fields qualify, irrespective of the file extension. LibRaw's cam_xyz is
-  // populated from its model table and must never become source calibration.
+  // current frame's WB/working-space transform. Use embedded calibration or the
+  // explicit fixed DNG fallback, never LibRaw's model-table cam_xyz.
   Matrix3x3 fixedColorMatrix1 = Matrix3x3::identity();
   Matrix3x3 fixedColorMatrix2 = Matrix3x3::identity();
   Matrix3x3 fixedCameraCalibration1 = Matrix3x3::identity();
@@ -3396,7 +3455,7 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
             RawProcessor.imgdata.color.dng_color[index].colormatrix[i][j];
       }
     }
-    return hasMatrixSignal(matrix);
+    return isUsableSourceColorMatrix(matrix, RawProcessor.imgdata.color.dng_color[index].illuminant);
   };
 
   auto readDngForwardMatrix = [&](int index, Matrix3x3 &matrix) {
@@ -3406,7 +3465,7 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
             RawProcessor.imgdata.color.dng_color[index].forwardmatrix[i][j];
       }
     }
-    return hasMatrixSignal(matrix);
+    return isUsableSourceMatrix(matrix, true);
   };
 
   auto readDngCameraCalibration = [&](int index, Matrix3x3 &matrix) {
@@ -3425,17 +3484,19 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
     return isDngInput && hasValue;
   };
 
-  const bool hasColor1 = readDngColorMatrix(0, colorMatrix1);
-  const bool hasColor2 = readDngColorMatrix(1, colorMatrix2);
+  bool hasColor1 = readDngColorMatrix(0, colorMatrix1);
+  bool hasColor2 = readDngColorMatrix(1, colorMatrix2);
   const bool rejectForwardMatrices = isSrgbPlaceholderForwardMatrixPair(
       RawProcessor.imgdata.color.dng_color[0], RawProcessor.imgdata.color.dng_color[1]);
-  const bool hasForward1 = readDngForwardMatrix(0, forwardMatrix1) && !rejectForwardMatrices;
-  const bool hasForward2 = readDngForwardMatrix(1, forwardMatrix2) && !rejectForwardMatrices;
+  bool hasForward1 = readDngForwardMatrix(0, forwardMatrix1) && !rejectForwardMatrices;
+  bool hasForward2 = readDngForwardMatrix(1, forwardMatrix2) && !rejectForwardMatrices;
   if (rejectForwardMatrices) {
     LOGI("Ignoring identical 1/128-quantized sRGB-to-XYZ(D50) ForwardMatrix pair");
   }
-  const bool hasCameraCalibration1 = readDngCameraCalibration(0, cameraCalibration1);
-  const bool hasCameraCalibration2 = readDngCameraCalibration(1, cameraCalibration2);
+  bool hasCameraCalibration1 = readDngCameraCalibration(0, cameraCalibration1);
+  bool hasCameraCalibration2 = readDngCameraCalibration(1, cameraCalibration2);
+  int illuminant1 = RawProcessor.imgdata.color.dng_color[0].illuminant;
+  int illuminant2 = RawProcessor.imgdata.color.dng_color[1].illuminant;
 
   std::array<float, 3> analogBalance = {1.0f, 1.0f, 1.0f};
   for (int i = 0; i < 3; ++i) {
@@ -3443,6 +3504,21 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
     if (analog > 0.0f && std::isfinite(analog)) {
       analogBalance[i] = analog;
     }
+  }
+
+  const bool useFallbackCalibration = !hasColor1 && !hasColor2 && !hasForward1 && !hasForward2;
+  if (useFallbackCalibration) {
+    memcpy(colorMatrix1.m, fixed_raw_calibration::colorMatrix1, sizeof(colorMatrix1.m));
+    memcpy(colorMatrix2.m, fixed_raw_calibration::colorMatrix2, sizeof(colorMatrix2.m));
+    hasColor1 = hasColor2 = true;
+    hasForward1 = hasForward2 = false;
+    illuminant1 = fixed_raw_calibration::illuminant1;
+    illuminant2 = fixed_raw_calibration::illuminant2;
+    memcpy(cameraCalibration1.m, fixed_raw_calibration::cameraCalibration1, sizeof(cameraCalibration1.m));
+    memcpy(cameraCalibration2.m, fixed_raw_calibration::cameraCalibration2, sizeof(cameraCalibration2.m));
+    hasCameraCalibration1 = hasCameraCalibration2 = true;
+    analogBalance = {1.0f, 1.0f, 1.0f};
+    LOGI("No usable source matrices; using fixed DNG calibration (ColorMatrix only)");
   }
 
   if (hasColor1 || hasColor2 || hasForward1 || hasForward2) {
@@ -3454,9 +3530,9 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
     hasFixedCalibration2 = hasCameraCalibration2;
     fixedCameraCalibration1 = cameraCalibration1;
     fixedCameraCalibration2 = cameraCalibration2;
-    fixedIlluminant1 = RawProcessor.imgdata.color.dng_color[0].illuminant;
-    fixedIlluminant2 = RawProcessor.imgdata.color.dng_color[1].illuminant;
-    if ((RawProcessor.imgdata.color.dng_levels.parsedfields &
+    fixedIlluminant1 = illuminant1;
+    fixedIlluminant2 = illuminant2;
+    if (!useFallbackCalibration && (RawProcessor.imgdata.color.dng_levels.parsedfields &
          LIBRAW_DNGFM_ANALOGBALANCE) != 0) {
       hasFixedAnalogBalance = true;
       fixedAnalogBalance = analogBalance;
@@ -3467,8 +3543,7 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
        "ill=%d,%d analog=%f,%f,%f",
        hasColor1 ? 1 : 0, hasColor2 ? 1 : 0, hasForward1 ? 1 : 0,
        hasForward2 ? 1 : 0,
-       RawProcessor.imgdata.color.dng_color[0].illuminant,
-       RawProcessor.imgdata.color.dng_color[1].illuminant, analogBalance[0],
+       illuminant1, illuminant2, analogBalance[0],
        analogBalance[1], analogBalance[2]);
 
   Matrix3x3 camToXYZ = Matrix3x3::identity();
@@ -3491,8 +3566,7 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
   bool hasSdkMatrix = computeDngSdkCameraToPcsD50(
       colorMatrix1, hasColor1, colorMatrix2, hasColor2, forwardMatrix1,
       hasForward1, forwardMatrix2, hasForward2,
-      RawProcessor.imgdata.color.dng_color[0].illuminant,
-      RawProcessor.imgdata.color.dng_color[1].illuminant, wb,
+      illuminant1, illuminant2, wb,
       cameraCalibration1, cameraCalibration2, analogBalance,
       camToXYZ,
       &sdkWhiteXy, &sdkCameraWhite);

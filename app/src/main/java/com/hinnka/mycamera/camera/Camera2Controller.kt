@@ -27,7 +27,7 @@ import android.net.Uri
 import androidx.exifinterface.media.ExifInterface
 import com.hinnka.mycamera.raw.ColorSpace as RawColorSpace
 import com.hinnka.mycamera.raw.DngSdkColorSpec
-import com.hinnka.mycamera.raw.ForwardMatrixPolicy
+import com.hinnka.mycamera.raw.RawColorCalibrationPolicy
 import com.hinnka.mycamera.utils.PLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -4646,19 +4646,20 @@ class Camera2Controller(private val context: Context) {
 
     private fun buildColorMatrixWhiteBalanceTransform(gains: RggbChannelVector): ColorSpaceTransform? {
         val characteristics = resolveActiveWhiteBalanceCharacteristics() ?: return null
-        val colorMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)?.let(::extractMatrix3x3)
-        val colorMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)?.let(::extractMatrix3x3)
-        val (forwardMatrix1, forwardMatrix2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
+        val calibration = RawColorCalibrationPolicy.fromCharacteristics(characteristics)
+        val colorMatrix1 = calibration.colorMatrix1?.let(::extractMatrix3x3)
+        val colorMatrix2 = calibration.colorMatrix2?.let(::extractMatrix3x3)
         if (colorMatrix1 == null && colorMatrix2 == null) return null
 
         val matrix = DngSdkColorSpec.computeCameraToWorkingMatrix(
             colorMatrix1 = colorMatrix1,
             colorMatrix2 = colorMatrix2,
-            forwardMatrix1 = forwardMatrix1?.let(::extractMatrix3x3),
-            forwardMatrix2 = forwardMatrix2?.let(::extractMatrix3x3),
-            calibrationIlluminant1 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1) ?: 0,
-            calibrationIlluminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt()
-                ?: 0,
+            forwardMatrix1 = calibration.forwardMatrix1?.let(::extractMatrix3x3),
+            forwardMatrix2 = calibration.forwardMatrix2?.let(::extractMatrix3x3),
+            calibrationIlluminant1 = calibration.illuminant1,
+            calibrationIlluminant2 = calibration.illuminant2,
+            cameraCalibration1 = calibration.calibration1?.let(::extractMatrix3x3),
+            cameraCalibration2 = calibration.calibration2?.let(::extractMatrix3x3),
             whiteBalanceGains = floatArrayOf(gains.red, gains.greenEven, gains.greenOdd, gains.blue),
             workingColorSpace = RawColorSpace.SRGB
         ) ?: return null

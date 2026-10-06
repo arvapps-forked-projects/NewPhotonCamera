@@ -19,7 +19,7 @@ import com.hinnka.mycamera.raw.DcpProfileParser
 import com.hinnka.mycamera.raw.DcpRenderPlan
 import com.hinnka.mycamera.raw.DcpToneCurve
 import com.hinnka.mycamera.raw.DngWarpRectilinear
-import com.hinnka.mycamera.raw.ForwardMatrixPolicy
+import com.hinnka.mycamera.raw.RawColorCalibrationPolicy
 import com.hinnka.mycamera.raw.RawCfaCorrection
 import com.hinnka.mycamera.raw.RawMetadata
 import com.hinnka.mycamera.raw.RawPhysicalCrop
@@ -109,32 +109,31 @@ object SuperResolutionDngWriter {
         profileGainTableMap: DngProfileGainTableMap? = null,
         profileToneCurve: FloatArray? = null,
     ): DcpProfile {
-        val colorMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)
+        val calibration = RawColorCalibrationPolicy.fromCharacteristics(characteristics)
+        val colorMatrix1 = calibration.colorMatrix1
             ?.let(::colorTransformToDngMatrix)
             ?.map(::serializedSignedRational)
             ?.toFloatArray()
-        val colorMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)
+        val colorMatrix2 = calibration.colorMatrix2
             ?.let(::colorTransformToDngMatrix)
             ?.map(::serializedSignedRational)
             ?.toFloatArray()
-        val (selectedForward1, selectedForward2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
-        val forwardMatrix1 = selectedForward1
+        val forwardMatrix1 = calibration.forwardMatrix1
             ?.let(::colorTransformToExactDngMatrix)
             ?.map(::serializedSignedRational)
             ?.toFloatArray()
-        val forwardMatrix2 = selectedForward2
+        val forwardMatrix2 = calibration.forwardMatrix2
             ?.let(::colorTransformToExactDngMatrix)
             ?.map(::serializedSignedRational)
             ?.toFloatArray()
-        val illuminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)
-            ?.toInt()
-            ?.takeIf { colorMatrix2 != null }
+        val illuminant2 = calibration.illuminant2
+            .takeIf { colorMatrix2 != null }
             ?: 0
-        val calibration1 = characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM1)
+        val calibration1 = calibration.calibration1
             ?.let(::colorTransformToExactDngMatrix)
             ?.map(::serializedSignedRational)
             ?.toFloatArray()
-        val calibration2 = characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM2)
+        val calibration2 = calibration.calibration2
             ?.takeIf { illuminant2 != 0 }
             ?.let(::colorTransformToExactDngMatrix)
             ?.map(::serializedSignedRational)
@@ -142,9 +141,7 @@ object SuperResolutionDngWriter {
         val toneCurve = normalizeProfileToneCurve(profileToneCurve)?.let(::DcpToneCurve)
         return DcpProfile(
             profileName = "Embedded",
-            calibrationIlluminant1 = characteristics.get(
-                CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1
-            ) ?: 21,
+            calibrationIlluminant1 = calibration.illuminant1.takeIf { it != 0 } ?: 21,
             calibrationIlluminant2 = illuminant2,
             baselineExposureOffset = 0f,
             defaultBlackRender = if (
@@ -517,13 +514,15 @@ object SuperResolutionDngWriter {
                 "includesPixelArray=${geometry.bufferIncludesPixelArray} " +
                 "scale=${geometry.scaleX},${geometry.scaleY}"
         )
-        val illuminant1 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1) ?: 21
-        val illuminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt()
-        val colorMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)
-        val colorMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)
-        val (forwardMatrix1, forwardMatrix2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
-        val calibrationMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM1)
-        val calibrationMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM2)
+        val calibration = RawColorCalibrationPolicy.fromCharacteristics(characteristics)
+        val illuminant1 = calibration.illuminant1.takeIf { it != 0 } ?: 21
+        val illuminant2 = calibration.illuminant2.takeIf { it != 0 }
+        val colorMatrix1 = calibration.colorMatrix1
+        val colorMatrix2 = calibration.colorMatrix2
+        val forwardMatrix1 = calibration.forwardMatrix1
+        val forwardMatrix2 = calibration.forwardMatrix2
+        val calibrationMatrix1 = calibration.calibration1
+        val calibrationMatrix2 = calibration.calibration2
         val noiseProfile = buildNoiseProfile(captureResult)
         val captureDate =
             captureMetadataResult.get(CaptureResult.SENSOR_TIMESTAMP)?.let { timestampNs ->

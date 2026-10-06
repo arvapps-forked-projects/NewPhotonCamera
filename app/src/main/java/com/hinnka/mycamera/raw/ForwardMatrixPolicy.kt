@@ -3,7 +3,6 @@ package com.hinnka.mycamera.raw
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.params.ColorSpaceTransform
 import com.hinnka.mycamera.utils.PLog
-import kotlin.math.abs
 
 /** Select at the metadata boundary, before Float conversion or DNG normalization. */
 internal object ForwardMatrixPolicy {
@@ -49,14 +48,8 @@ internal object ForwardMatrixPolicy {
         IntArray(18).also { copyElements(it, 0) }
 
     private fun isUsable(transform: ColorSpaceTransform): Boolean {
-        var signal = 0.0
-        for (row in 0 until 3) {
-            for (col in 0 until 3) {
-                val value = transform.getElement(col, row).toDouble()
-                if (!value.isFinite()) return false
-                signal += abs(value)
-            }
-        }
-        return signal > 0.01
+        return RawColorCalibrationPolicy.isUsableForwardMatrix(FloatArray(9) {
+            transform.getElement(it % 3, it / 3).toFloat()
+        })
     }
 }
