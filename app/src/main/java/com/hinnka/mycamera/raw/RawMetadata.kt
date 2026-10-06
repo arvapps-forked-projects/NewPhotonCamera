@@ -12,7 +12,6 @@ import com.hinnka.mycamera.camera.readMetadataOrNull
 import com.hinnka.mycamera.camera.readMetadataOrThrow
 import com.hinnka.mycamera.processor.RawNoiseModel
 import com.hinnka.mycamera.processor.RawNoiseProfileSelection
-import com.hinnka.mycamera.utils.DeviceUtil
 import com.hinnka.mycamera.utils.PLog
 import kotlin.collections.contentToString
 
@@ -688,27 +687,18 @@ data class RawMetadata(
             } else {
                 floatArrayOf(1f, 1f, 1f, 1f)
             }
-            val forwardMatrix1 = if (DeviceUtil.isOppo) {
-                null
-            } else {
-                characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX1)?.let(::extractCCM)
-            }
-            val forwardMatrix2 = if (DeviceUtil.isOppo) {
-                null
-            } else {
-                characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX2)?.let(::extractCCM)
-            }
+            val (forwardMatrix1, forwardMatrix2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
             return DngSdkColorSpec.computeCameraToWorkingMatrix(
                 colorMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)?.let(::extractCCM),
                 colorMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)?.let(::extractCCM),
-                forwardMatrix1 = forwardMatrix1,
-                forwardMatrix2 = forwardMatrix2,
+                forwardMatrix1 = forwardMatrix1?.let(::extractCCM),
+                forwardMatrix2 = forwardMatrix2?.let(::extractCCM),
                 calibrationIlluminant1 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1) ?: 0,
                 calibrationIlluminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt() ?: 0,
                 whiteBalanceGains = whiteBalanceGains,
                 workingColorSpace = colorSpace
             ) ?: run {
-                Log.d(TAG, "No ForwardMatrix/ColorMatrix available, using identity matrix")
+                PLog.d(TAG, "No ForwardMatrix/ColorMatrix available, using identity matrix")
                 floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
             }
         }
@@ -722,11 +712,12 @@ data class RawMetadata(
             } else {
                 floatArrayOf(1f, 1f, 1f, 1f)
             }
+            val (forwardMatrix1, forwardMatrix2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
             return DngSdkColorSpec.computeCameraWhite(
                 colorMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)?.let(::extractCCM),
                 colorMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)?.let(::extractCCM),
-                forwardMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX1)?.let(::extractCCM),
-                forwardMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX2)?.let(::extractCCM),
+                forwardMatrix1 = forwardMatrix1?.let(::extractCCM),
+                forwardMatrix2 = forwardMatrix2?.let(::extractCCM),
                 calibrationIlluminant1 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1) ?: 0,
                 calibrationIlluminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt() ?: 0,
                 whiteBalanceGains = whiteBalanceGains
@@ -738,6 +729,7 @@ data class RawMetadata(
             wbGains: RggbChannelVector?
         ): FloatArray? {
             if (wbGains == null) return null
+            val (forwardMatrix1, forwardMatrix2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
             return DngSdkColorSpec.computeWhiteXy(
                 colorMatrix1 = characteristics.get(
                     CameraCharacteristics.SENSOR_COLOR_TRANSFORM1
@@ -745,12 +737,8 @@ data class RawMetadata(
                 colorMatrix2 = characteristics.get(
                     CameraCharacteristics.SENSOR_COLOR_TRANSFORM2
                 )?.let(::extractCCM),
-                forwardMatrix1 = characteristics.get(
-                    CameraCharacteristics.SENSOR_FORWARD_MATRIX1
-                )?.let(::extractCCM),
-                forwardMatrix2 = characteristics.get(
-                    CameraCharacteristics.SENSOR_FORWARD_MATRIX2
-                )?.let(::extractCCM),
+                forwardMatrix1 = forwardMatrix1?.let(::extractCCM),
+                forwardMatrix2 = forwardMatrix2?.let(::extractCCM),
                 calibrationIlluminant1 = characteristics.get(
                     CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT1
                 ) ?: 0,

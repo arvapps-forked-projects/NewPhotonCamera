@@ -1474,16 +1474,28 @@ void LibRaw::identify_process_dng_fields()
 			{
 				sidx = IFDCOLORINDEX(iifd, 0, LIBRAW_DNGFM_FORWARDMATRIX);
 				if (sidx >= 0)
+				{
 					COPYARR(imgdata.color.dng_color[0].forwardmatrix,
 						tiff_ifd[sidx].dng_color[0].forwardmatrix);
+					COPYARR(imgdata.color.dng_color[0].forwardmatrix_original,
+						tiff_ifd[sidx].dng_color[0].forwardmatrix_original);
+					imgdata.color.dng_color[0].forwardmatrix_original_type =
+						tiff_ifd[sidx].dng_color[0].forwardmatrix_original_type;
+				}
 			}
 			if (!(imgdata.color.dng_color[1].parsedfields &
 				LIBRAW_DNGFM_FORWARDMATRIX)) // Not set already (Leica makernotes)
 			{
 				sidx = IFDCOLORINDEX(iifd, 1, LIBRAW_DNGFM_FORWARDMATRIX);
 				if (sidx >= 0)
+				{
 					COPYARR(imgdata.color.dng_color[1].forwardmatrix,
 						tiff_ifd[sidx].dng_color[1].forwardmatrix);
+					COPYARR(imgdata.color.dng_color[1].forwardmatrix_original,
+						tiff_ifd[sidx].dng_color[1].forwardmatrix_original);
+					imgdata.color.dng_color[1].forwardmatrix_original_type =
+						tiff_ifd[sidx].dng_color[1].forwardmatrix_original_type;
+				}
 			}
 			for (int ss = 0; ss < 2; ss++)
 			{

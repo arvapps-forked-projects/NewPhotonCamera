@@ -1101,26 +1101,30 @@ static jobject createRawCameraCalibration(
   return result;
 }
 
-static bool isOppoCameraMake(const char *make) {
-  if (!make) {
+static bool isSrgbPlaceholderForwardMatrixPair(const libraw_dng_color_t &first,
+                                              const libraw_dng_color_t &second) {
+  const unsigned type = first.forwardmatrix_original_type;
+  if ((type != LIBRAW_EXIFTAG_TYPE_SRATIONAL &&
+       type != LIBRAW_EXIFTAG_TYPE_RATIONAL) ||
+      type != second.forwardmatrix_original_type ||
+      memcmp(first.forwardmatrix_original, second.forwardmatrix_original,
+             sizeof(first.forwardmatrix_original)) != 0) {
     return false;
   }
-  std::string normalized(make);
-  const auto first = std::find_if_not(
-      normalized.begin(), normalized.end(),
-      [](unsigned char value) { return std::isspace(value) != 0; });
-  const auto last = std::find_if_not(
-      normalized.rbegin(), normalized.rend(),
-      [](unsigned char value) { return std::isspace(value) != 0; }).base();
-  if (first >= last) {
-    return false;
+  // Bradford-adapted sRGB -> XYZ(D50), quantized to 1/128. Same signature
+  // as ForwardMatrixPolicy.kt; compare before normalization or interpolation.
+  static constexpr int numerators[9] = {56, 49, 18, 28, 92, 8, 2, 12, 91};
+  for (int i = 0; i < 9; ++i) {
+    const int64_t numerator = type == LIBRAW_EXIFTAG_TYPE_SRATIONAL
+        ? static_cast<int32_t>(first.forwardmatrix_original[i * 2])
+        : static_cast<int64_t>(first.forwardmatrix_original[i * 2]);
+    const int64_t denominator = type == LIBRAW_EXIFTAG_TYPE_SRATIONAL
+        ? static_cast<int32_t>(first.forwardmatrix_original[i * 2 + 1])
+        : static_cast<int64_t>(first.forwardmatrix_original[i * 2 + 1]);
+    if (denominator == 0 || numerator * 128 != numerators[i] * denominator)
+      return false;
   }
-  normalized = std::string(first, last);
-  std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                 [](unsigned char value) {
-                   return static_cast<char>(std::tolower(value));
-                 });
-  return normalized == "oppo" || normalized.rfind("oppo ", 0) == 0;
+  return true;
 }
 
 static std::array<float, 3> multiplyMatrixVector(const Matrix3x3 &matrix,
@@ -1621,7 +1625,6 @@ static bool dngSdkCameraWhiteForWhite(
 
 static bool dngSdkCameraToPcsForWhite(const DngSdkPreparedColor &prepared,
                                       const std::array<float, 2> &whiteXy,
-                                      bool preferColorMatrix,
                                       Matrix3x3 &cameraToPcs) {
   static constexpr std::array<float, 2> d50Xy = {0.3457f, 0.3585f};
   static constexpr std::array<float, 3> pcsToXyz = {0.9642957f, 1.0f,
@@ -1638,7 +1641,7 @@ static bool dngSdkCameraToPcsForWhite(const DngSdkPreparedColor &prepared,
     value *= pcsScale;
   }
 
-  if (!preferColorMatrix && matrices.hasForwardMatrix) {
+  if (matrices.hasForwardMatrix) {
     std::array<float, 3> cameraWhite;
     if (!dngSdkCameraWhiteForWhite(prepared, whiteXy, cameraWhite)) {
       return false;
@@ -1674,8 +1677,8 @@ static bool dngSdkCameraToPcsForWhite(const DngSdkPreparedColor &prepared,
   }
 
   cameraToPcs = pcsToCamera.invert();
-  LOGI("DNG matrix policy selected ColorMatrix: preferColor=%d hasForward=%d",
-       preferColorMatrix ? 1 : 0, matrices.hasForwardMatrix ? 1 : 0);
+  LOGI("DNG matrix policy selected ColorMatrix: hasForward=%d",
+       matrices.hasForwardMatrix ? 1 : 0);
   return true;
 }
 
@@ -1708,7 +1711,7 @@ static bool computeDngSdkCameraToPcsD50(
     const Matrix3x3 &forwardMatrix2, bool hasForward2, int illuminant1,
     int illuminant2, const float wb[4], const Matrix3x3 &cameraCalibration1,
     const Matrix3x3 &cameraCalibration2,
-    const std::array<float, 3> &analogBalance, bool preferColorMatrix,
+    const std::array<float, 3> &analogBalance,
     Matrix3x3 &cameraToPcs,
     std::array<float, 2> *outWhiteXy = nullptr,
     std::array<float, 3> *outCameraWhite = nullptr) {
@@ -1739,8 +1742,7 @@ static bool computeDngSdkCameraToPcsD50(
       !dngSdkCameraWhiteForWhite(prepared, whiteXy, *outCameraWhite)) {
     return false;
   }
-  return dngSdkCameraToPcsForWhite(prepared, whiteXy, preferColorMatrix,
-                                   cameraToPcs);
+  return dngSdkCameraToPcsForWhite(prepared, whiteXy, cameraToPcs);
 }
 
 static bool computeWbFromDngAsShotWhiteXY(const LibRaw &rawProcessor,
@@ -3425,8 +3427,13 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
 
   const bool hasColor1 = readDngColorMatrix(0, colorMatrix1);
   const bool hasColor2 = readDngColorMatrix(1, colorMatrix2);
-  const bool hasForward1 = readDngForwardMatrix(0, forwardMatrix1);
-  const bool hasForward2 = readDngForwardMatrix(1, forwardMatrix2);
+  const bool rejectForwardMatrices = isSrgbPlaceholderForwardMatrixPair(
+      RawProcessor.imgdata.color.dng_color[0], RawProcessor.imgdata.color.dng_color[1]);
+  const bool hasForward1 = readDngForwardMatrix(0, forwardMatrix1) && !rejectForwardMatrices;
+  const bool hasForward2 = readDngForwardMatrix(1, forwardMatrix2) && !rejectForwardMatrices;
+  if (rejectForwardMatrices) {
+    LOGI("Ignoring identical 1/128-quantized sRGB-to-XYZ(D50) ForwardMatrix pair");
+  }
   const bool hasCameraCalibration1 = readDngCameraCalibration(0, cameraCalibration1);
   const bool hasCameraCalibration2 = readDngCameraCalibration(1, cameraCalibration2);
 
@@ -3481,15 +3488,13 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
   for (float &value : sdkCameraWhite) {
     value = std::clamp(value * cameraWhiteScale, 0.001f, 1.0f);
   }
-  const bool preferColorMatrix =
-      isOppoCameraMake(RawProcessor.imgdata.idata.make);
   bool hasSdkMatrix = computeDngSdkCameraToPcsD50(
       colorMatrix1, hasColor1, colorMatrix2, hasColor2, forwardMatrix1,
       hasForward1, forwardMatrix2, hasForward2,
       RawProcessor.imgdata.color.dng_color[0].illuminant,
       RawProcessor.imgdata.color.dng_color[1].illuminant, wb,
       cameraCalibration1, cameraCalibration2, analogBalance,
-      preferColorMatrix, camToXYZ,
+      camToXYZ,
       &sdkWhiteXy, &sdkCameraWhite);
   if (hasSdkMatrix) {
     LOGI("Using DNG color spec path: whiteXY=%f,%f cameraWhite=%f,%f,%f",
@@ -3517,7 +3522,7 @@ Java_com_hinnka_mycamera_raw_RawDemosaicProcessor_processDngNative(
       if (computeDngSdkCameraToPcsD50(
               xyzToCam, true, identity, false, identity, false, identity,
               false, 21, 0, wb, identity, identity, unityAnalog,
-              preferColorMatrix, camToXYZ,
+              camToXYZ,
               &fallbackWhiteXy, &sdkCameraWhite)) {
         sdkWhiteXy = fallbackWhiteXy;
         LOGI("Using %s fallback via DNG ColorMatrix path: whiteXY=%f,%f",

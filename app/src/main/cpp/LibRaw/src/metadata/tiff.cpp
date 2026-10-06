@@ -1457,6 +1457,17 @@ int LibRaw::parse_tiff_ifd(INT64 base)
     {
       int chan = (len == 9) ? 3 : (len == 12 ? 4 : 0);
       i = tag == 0xc714 ? 0 : 1;
+      tiff_ifd[ifd].dng_color[i].forwardmatrix_original_type = 0;
+      if (chan == 3 && (type == LIBRAW_EXIFTAG_TYPE_SRATIONAL ||
+                        type == LIBRAW_EXIFTAG_TYPE_RATIONAL))
+      {
+        // Retain the unmodified words before getreal converts them to floats.
+        const INT64 matrixOffset = ftell(ifp);
+        for (int word = 0; word < 18; ++word)
+          tiff_ifd[ifd].dng_color[i].forwardmatrix_original[word] = get4();
+        tiff_ifd[ifd].dng_color[i].forwardmatrix_original_type = type;
+        fseek(ifp, matrixOffset, SEEK_SET);
+      }
       if (chan)
         tiff_ifd[ifd].dng_color[i].parsedfields |= LIBRAW_DNGFM_FORWARDMATRIX;
       for (j = 0; j < 3; j++)

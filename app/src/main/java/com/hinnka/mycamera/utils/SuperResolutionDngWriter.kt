@@ -19,6 +19,7 @@ import com.hinnka.mycamera.raw.DcpProfileParser
 import com.hinnka.mycamera.raw.DcpRenderPlan
 import com.hinnka.mycamera.raw.DcpToneCurve
 import com.hinnka.mycamera.raw.DngWarpRectilinear
+import com.hinnka.mycamera.raw.ForwardMatrixPolicy
 import com.hinnka.mycamera.raw.RawCfaCorrection
 import com.hinnka.mycamera.raw.RawMetadata
 import com.hinnka.mycamera.raw.RawPhysicalCrop
@@ -116,24 +117,15 @@ object SuperResolutionDngWriter {
             ?.let(::colorTransformToDngMatrix)
             ?.map(::serializedSignedRational)
             ?.toFloatArray()
-        val forwardMatrix1 = if (DeviceUtil.isOppo) {
-            null
-        } else {
-            characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX1)
-                ?.takeIf(::isUsableColorTransform)
-                ?.let(::colorTransformToExactDngMatrix)
-                ?.map(::serializedSignedRational)
-                ?.toFloatArray()
-        }
-        val forwardMatrix2 = if (DeviceUtil.isOppo) {
-            null
-        } else {
-            characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX2)
-                ?.takeIf(::isUsableColorTransform)
-                ?.let(::colorTransformToExactDngMatrix)
-                ?.map(::serializedSignedRational)
-                ?.toFloatArray()
-        }
+        val (selectedForward1, selectedForward2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
+        val forwardMatrix1 = selectedForward1
+            ?.let(::colorTransformToExactDngMatrix)
+            ?.map(::serializedSignedRational)
+            ?.toFloatArray()
+        val forwardMatrix2 = selectedForward2
+            ?.let(::colorTransformToExactDngMatrix)
+            ?.map(::serializedSignedRational)
+            ?.toFloatArray()
         val illuminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)
             ?.toInt()
             ?.takeIf { colorMatrix2 != null }
@@ -529,18 +521,7 @@ object SuperResolutionDngWriter {
         val illuminant2 = characteristics.get(CameraCharacteristics.SENSOR_REFERENCE_ILLUMINANT2)?.toInt()
         val colorMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM1)
         val colorMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_COLOR_TRANSFORM2)
-        val forwardMatrix1 = if (DeviceUtil.isOppo) {
-            null
-        } else {
-            characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX1)
-                ?.takeIf(::isUsableColorTransform)
-        }
-        val forwardMatrix2 = if (DeviceUtil.isOppo) {
-            null
-        } else {
-            characteristics.get(CameraCharacteristics.SENSOR_FORWARD_MATRIX2)
-                ?.takeIf(::isUsableColorTransform)
-        }
+        val (forwardMatrix1, forwardMatrix2) = ForwardMatrixPolicy.fromCharacteristics(characteristics)
         val calibrationMatrix1 = characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM1)
         val calibrationMatrix2 = characteristics.get(CameraCharacteristics.SENSOR_CALIBRATION_TRANSFORM2)
         val noiseProfile = buildNoiseProfile(captureResult)
@@ -1672,18 +1653,6 @@ object SuperResolutionDngWriter {
                 for (col in 0 until 3) add(transform.getElement(col, row).toDouble())
             }
         }
-
-    private fun isUsableColorTransform(transform: ColorSpaceTransform): Boolean {
-        var signal = 0.0
-        for (row in 0 until 3) {
-            for (col in 0 until 3) {
-                val value = transform.getElement(col, row).toDouble()
-                if (!value.isFinite()) return false
-                signal += kotlin.math.abs(value)
-            }
-        }
-        return signal > 0.01
-    }
 
     private fun normalizeDngColorMatrix(values: List<Double>): List<Double> {
         if (values.size != 9) return values

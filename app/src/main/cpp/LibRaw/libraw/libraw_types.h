@@ -243,6 +243,10 @@ typedef unsigned long long UINT64;
     float calibration[4][4];
     float colormatrix[4][3];
     float forwardmatrix[3][4];
+    /* Original 3x3 rational payload for exact ForwardMatrix policy checks.
+       Type is zero when the original payload is not available. */
+    unsigned forwardmatrix_original[18];
+    unsigned forwardmatrix_original_type;
   } libraw_dng_color_t;
 
   typedef struct

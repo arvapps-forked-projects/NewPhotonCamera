@@ -215,8 +215,14 @@ internal object DngEmbeddedProfile {
         // Preserve illuminant slots. DngSdkColorSpec promotes a lone second slot
         // together with its ForwardMatrix and CameraCalibration when needed.
 
-        val forwardMatrix1 = readMatrix(raf, ifd[TAG_FORWARD_MATRIX1], byteOrder)
-        val forwardMatrix2 = readMatrix(raf, ifd[TAG_FORWARD_MATRIX2], byteOrder)
+        val rejectForwardMatrices = isSrgbPlaceholderForwardMatrixPair(raf, ifd, byteOrder)
+        val forwardMatrix1 = if (rejectForwardMatrices) null
+            else readMatrix(raf, ifd[TAG_FORWARD_MATRIX1], byteOrder)
+        val forwardMatrix2 = if (rejectForwardMatrices) null
+            else readMatrix(raf, ifd[TAG_FORWARD_MATRIX2], byteOrder)
+        if (rejectForwardMatrices) {
+            PLog.d(TAG, "Ignoring identical 1/128-quantized sRGB-to-XYZ(D50) ForwardMatrix pair")
+        }
 
         val hueSatDims = readIntegerValues(raf, ifd[TAG_PROFILE_HUE_SAT_MAP_DIMS], byteOrder)
             ?.map { it.toInt() }
@@ -403,6 +409,25 @@ internal object DngEmbeddedProfile {
             values = values,
             encoding = encoding
         ).takeIf { it.isValid }
+    }
+
+    private fun isSrgbPlaceholderForwardMatrixPair(
+        raf: RandomAccessFile,
+        ifd: Map<Int, TiffEntry>,
+        byteOrder: ByteOrder
+    ): Boolean {
+        val first = ifd[TAG_FORWARD_MATRIX1] ?: return false
+        val second = ifd[TAG_FORWARD_MATRIX2] ?: return false
+        if (first.type != second.type || first.count != 9L || second.count != 9L ||
+            (first.type != TIFF_TYPE_SRATIONAL && first.type != TIFF_TYPE_RATIONAL)) return false
+        val firstBytes = readEntryBytes(raf, first, byteOrder)
+        val secondBytes = readEntryBytes(raf, second, byteOrder)
+        if (firstBytes.size != 72 || !firstBytes.contentEquals(secondBytes)) return false
+        val buffer = ByteBuffer.wrap(firstBytes).order(byteOrder)
+        val words = IntArray(18) { buffer.int }
+        return ForwardMatrixPolicy.isSrgbPlaceholderPair(
+            words, words, unsigned = first.type == TIFF_TYPE_RATIONAL
+        )
     }
 
     private fun readMatrix(
